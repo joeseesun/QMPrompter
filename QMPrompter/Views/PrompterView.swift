@@ -22,6 +22,7 @@ struct PrompterView: View {
     @State private var speechStartPending = false
     @State private var pendingSettingsSave = false
     @State private var settingsSaveTask: Task<Void, Never>?
+    @State private var previousIdleTimerDisabled: Bool?
 
     var body: some View {
         GeometryReader { proxy in
@@ -97,6 +98,7 @@ struct PrompterView: View {
             .persistentSystemOverlays(.hidden)
             .contentShape(Rectangle())
             .onAppear {
+                beginPrompterSession()
                 let updatedLayout = refreshPromptLayout(width: proxy.size.width)
                 let updatedMaxOffset = maximumOffset(
                     for: updatedLayout,
@@ -156,11 +158,24 @@ struct PrompterView: View {
             .onChange(of: script.textColorPreset) { _, _ in scheduleSettingsSave() }
             .onChange(of: script.overlayOpacity) { _, _ in scheduleSettingsSave() }
             .onDisappear {
+                endPrompterSession()
                 flushPendingSettingsSave()
                 speechFollower.stop()
                 engine.stopFollowing()
             }
         }
+    }
+
+    private func beginPrompterSession() {
+        guard previousIdleTimerDisabled == nil else { return }
+        previousIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
+        UIApplication.shared.isIdleTimerDisabled = true
+    }
+
+    private func endPrompterSession() {
+        guard let previousIdleTimerDisabled else { return }
+        UIApplication.shared.isIdleTimerDisabled = previousIdleTimerDisabled
+        self.previousIdleTimerDisabled = nil
     }
 
     @discardableResult
