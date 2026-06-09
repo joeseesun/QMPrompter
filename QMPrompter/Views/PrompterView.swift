@@ -460,7 +460,14 @@ struct PrompterView: View {
 
     private var modeStatusAccessibilityLabel: String {
         if speechStartPending || speechFollower.state != .idle {
-            return "切换到速度控制"
+            switch speechFollower.state {
+            case .denied:
+                return "打开语音权限设置"
+            case .unavailable, .failed:
+                return "重新启动语音跟随"
+            case .idle, .listening:
+                return "切换到速度控制"
+            }
         }
 
         return "切换到语音跟随"
@@ -646,7 +653,10 @@ struct PrompterView: View {
         PromptProgressSlider(
             position: engine.position,
             maxOffset: maxOffset,
-            setOffset: { engine.setOffset($0) }
+            setOffset: {
+                stopSpeechFollowerForManualPositioning()
+                engine.setOffset($0)
+            }
         )
     }
 
@@ -715,11 +725,27 @@ struct PrompterView: View {
     }
 
     private func toggleModeFromStatusPill() {
-        if speechStartPending || speechFollower.state != .idle {
+        if speechStartPending || speechFollower.isListening {
             switchToSpeedControl()
-        } else {
-            startSpeechFollower(maxOffset: latestMaximumOffset)
+            return
         }
+
+        switch speechFollower.state {
+        case .idle:
+            startSpeechFollower(maxOffset: latestMaximumOffset)
+        case .denied:
+            openAppSettings()
+        case .unavailable, .failed:
+            speechFollower.reset()
+            startSpeechFollower(maxOffset: latestMaximumOffset)
+        case .listening:
+            switchToSpeedControl()
+        }
+    }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     private func switchToSpeedControl() {

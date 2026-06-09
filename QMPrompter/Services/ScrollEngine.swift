@@ -56,6 +56,7 @@ final class ScrollEngine: ObservableObject {
 
     func pause() {
         isPlaying = false
+        stopDisplayLinkIfIdle()
     }
 
     func toggle() {
@@ -72,6 +73,7 @@ final class ScrollEngine: ObservableObject {
     func setOffset(_ value: CGFloat) {
         followTargetOffset = nil
         applyOffset(value)
+        stopDisplayLinkIfIdle()
     }
 
     func follow(to value: CGFloat) {
@@ -82,6 +84,7 @@ final class ScrollEngine: ObservableObject {
 
     func stopFollowing() {
         followTargetOffset = nil
+        stopDisplayLinkIfIdle()
     }
 
     private func applyOffset(_ value: CGFloat) {
@@ -112,9 +115,16 @@ final class ScrollEngine: ObservableObject {
         displayLink = link
     }
 
+    private func stopDisplayLinkIfIdle() {
+        guard !isPlaying && followTargetOffset == nil else { return }
+        displayLink?.invalidate()
+        displayLink = nil
+        lastTimestamp = 0
+    }
+
     @objc private func tick(_ link: CADisplayLink) {
         guard isPlaying || followTargetOffset != nil else {
-            lastTimestamp = link.timestamp
+            stopDisplayLinkIfIdle()
             return
         }
 
@@ -133,6 +143,7 @@ final class ScrollEngine: ObservableObject {
             if abs(nextOffset - target) < 0.5 {
                 applyOffset(target)
                 followTargetOffset = nil
+                stopDisplayLinkIfIdle()
             } else {
                 applyOffset(nextOffset)
             }
