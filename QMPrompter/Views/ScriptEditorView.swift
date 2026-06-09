@@ -21,6 +21,14 @@ struct ScriptEditorView: View {
         !script.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var isStoredScript: Bool {
+        store.script(with: script.id) != nil
+    }
+
+    private var canPersistScript: Bool {
+        canStartPrompting || isStoredScript
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Picker("编辑区域", selection: $selectedTab) {
@@ -46,7 +54,7 @@ struct ScriptEditorView: View {
             Button("保存") {
                 let nextTitle = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
                 script.title = nextTitle.isEmpty ? "未命名文稿" : nextTitle
-                save()
+                saveIfPersistable()
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -123,7 +131,7 @@ struct ScriptEditorView: View {
                     save()
                     dismiss()
                 }
-                .disabled(script.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!canPersistScript)
             }
         }
         .fullScreenCover(isPresented: $showPrompter) {
@@ -133,8 +141,7 @@ struct ScriptEditorView: View {
         }
         .confirmationDialog("清空正文", isPresented: $showClearConfirmation, titleVisibility: .visible) {
             Button("清空正文", role: .destructive) {
-                script.content = ""
-                editorFocused = true
+                clearContent()
             }
 
             Button("取消", role: .cancel) {}
@@ -145,9 +152,7 @@ struct ScriptEditorView: View {
             normalizeDisplaySettings()
         }
         .onDisappear {
-            if !script.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                save()
-            }
+            saveIfPersistable()
         }
     }
 
@@ -245,6 +250,19 @@ struct ScriptEditorView: View {
             script.title = "未命名文稿"
         }
         store.save(script)
+    }
+
+    private func saveIfPersistable() {
+        guard canPersistScript else { return }
+        save()
+    }
+
+    private func clearContent() {
+        script.content = ""
+        if isStoredScript {
+            save()
+        }
+        editorFocused = true
     }
 
     private func startPrompting() {

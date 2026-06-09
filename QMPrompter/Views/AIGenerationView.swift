@@ -9,6 +9,7 @@ struct AIGenerationView: View {
     @State private var prompt = ""
     @State private var isGenerating = false
     @State private var errorMessage: String?
+    @State private var generationTask: Task<Void, Never>?
 
     private var canGenerate: Bool {
         apiKeyStore.hasDeepSeekAPIKey &&
@@ -41,16 +42,14 @@ struct AIGenerationView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") {
-                        dictation.stop()
-                        dismiss()
+                        cancelGeneration()
+                        close()
                     }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task {
-                            await generate()
-                        }
+                        startGeneration()
                     } label: {
                         if isGenerating {
                             ProgressView()
@@ -78,6 +77,7 @@ struct AIGenerationView: View {
                 prompt = transcript
             }
             .onDisappear {
+                cancelGeneration()
                 dictation.stop()
             }
         }
@@ -116,6 +116,25 @@ struct AIGenerationView: View {
             .aiGenerationGlassSurface(cornerRadius: 18)
     }
 
+    private func startGeneration() {
+        guard canGenerate else { return }
+        generationTask?.cancel()
+        generationTask = Task {
+            await generate()
+        }
+    }
+
+    private func cancelGeneration() {
+        generationTask?.cancel()
+        generationTask = nil
+        isGenerating = false
+    }
+
+    private func close() {
+        dictation.stop()
+        dismiss()
+    }
+
     private func generate() async {
         let cleanedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard apiKeyStore.hasDeepSeekAPIKey, !cleanedPrompt.isEmpty, !isGenerating else { return }
@@ -123,13 +142,20 @@ struct AIGenerationView: View {
         dictation.stop()
         errorMessage = nil
         isGenerating = true
-        defer { isGenerating = false }
+        defer {
+            isGenerating = false
+            generationTask = nil
+        }
 
         do {
             let generator = DeepSeekScriptGenerator(apiKey: apiKeyStore.deepSeekAPIKey)
             let content = try await generator.generateScript(for: cleanedPrompt)
+            guard !Task.isCancelled else { return }
             createScript(from: content, prompt: cleanedPrompt)
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
         }
     }
