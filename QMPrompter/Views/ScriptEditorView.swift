@@ -130,6 +130,15 @@ struct ScriptEditorView: View {
                 }
                 .disabled(!canPersistScript)
             }
+
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+
+                Button("完成") {
+                    editorFocused = false
+                }
+                .fontWeight(.semibold)
+            }
         }
         .fullScreenCover(isPresented: $showPrompter) {
             PrompterView(script: $script) {

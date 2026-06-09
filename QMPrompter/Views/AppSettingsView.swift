@@ -34,9 +34,16 @@ struct AppSettingsView: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("保存") {
-                        apiKeyStore.deepSeekAPIKey = apiKeyDraft
-                        apiKeyStore.saveDeepSeekAPIKey()
-                        dismiss()
+                        saveAPIKeyAndDismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+
+                    Button("完成") {
+                        keyFieldFocused = false
                     }
                     .fontWeight(.semibold)
                 }
@@ -65,6 +72,8 @@ struct AppSettingsView: View {
                     .textContentType(.password)
                     .font(.system(size: 16, weight: .regular, design: .monospaced))
                     .focused($keyFieldFocused)
+                    .submitLabel(.done)
+                    .onSubmit(saveAPIKeyAndDismiss)
 
                 if !apiKeyDraft.isEmpty {
                     Button {
@@ -74,6 +83,8 @@ struct AppSettingsView: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.secondary.opacity(0.72))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("清空 API Key")
@@ -89,6 +100,12 @@ struct AppSettingsView: View {
         }
         .padding(16)
         .settingsGlassSurface(cornerRadius: 22)
+    }
+
+    private func saveAPIKeyAndDismiss() {
+        apiKeyStore.deepSeekAPIKey = apiKeyDraft
+        apiKeyStore.saveDeepSeekAPIKey()
+        dismiss()
     }
 }
 

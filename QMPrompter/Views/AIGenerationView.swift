@@ -12,6 +12,7 @@ struct AIGenerationView: View {
     @State private var errorMessage: String?
     @State private var showSettings = false
     @State private var generationTask: Task<Void, Never>?
+    @FocusState private var promptFocused: Bool
 
     private var canGenerate: Bool {
         apiKeyStore.hasDeepSeekAPIKey &&
@@ -62,6 +63,15 @@ struct AIGenerationView: View {
                     }
                     .disabled(!canGenerate)
                 }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+
+                    Button("完成") {
+                        promptFocused = false
+                    }
+                    .fontWeight(.semibold)
+                }
             }
             .safeAreaInset(edge: .bottom) {
                 VoiceInputButton(
@@ -98,6 +108,7 @@ struct AIGenerationView: View {
                     .font(.system(size: 17))
                     .lineSpacing(4)
                     .disabled(isGenerating)
+                    .focused($promptFocused)
 
                 if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text("输入或说出你想生成的内容。")
@@ -155,6 +166,7 @@ struct AIGenerationView: View {
     private func startGeneration() {
         guard canGenerate else { return }
         Haptics.mediumImpact()
+        promptFocused = false
         generationTask?.cancel()
         generationTask = Task {
             await generate()
@@ -179,6 +191,7 @@ struct AIGenerationView: View {
         }
 
         promptBeforeDictation = prompt
+        promptFocused = false
         dictation.start()
     }
 
