@@ -13,6 +13,7 @@ final class PromptDictation: ObservableObject {
     private var recognitionTask: SFSpeechRecognitionTask?
     private var inputTapInstalled = false
     private var recognitionSessionID = UUID()
+    private var intentionallyStoppedSessionIDs: Set<UUID> = []
 
     func toggle() {
         isRecording ? stop() : start()
@@ -25,6 +26,12 @@ final class PromptDictation: ObservableObject {
     }
 
     func stop() {
+        let stoppedSessionID = recognitionSessionID
+        if hasActiveRecognitionSession {
+            intentionallyStoppedSessionIDs.insert(stoppedSessionID)
+            trimStoppedSessionIDsIfNeeded(keeping: stoppedSessionID)
+        }
+
         recognitionSessionID = UUID()
         isRecording = false
 
@@ -43,6 +50,19 @@ final class PromptDictation: ObservableObject {
         recognitionTask = nil
 
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    private var hasActiveRecognitionSession: Bool {
+        isRecording ||
+            recognitionTask != nil ||
+            recognitionRequest != nil ||
+            audioEngine.isRunning ||
+            inputTapInstalled
+    }
+
+    private func trimStoppedSessionIDsIfNeeded(keeping sessionID: UUID) {
+        guard intentionallyStoppedSessionIDs.count > 8 else { return }
+        intentionallyStoppedSessionIDs = [sessionID]
     }
 
     private func startRecording() async {
@@ -98,16 +118,22 @@ final class PromptDictation: ObservableObject {
         recognitionSessionID = sessionID
         recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
-                guard self?.recognitionSessionID == sessionID else { return }
+                guard let self else { return }
+
+                if self.intentionallyStoppedSessionIDs.remove(sessionID) != nil {
+                    return
+                }
+
+                guard self.recognitionSessionID == sessionID else { return }
 
                 if let result {
-                    self?.transcript = result.bestTranscription.formattedString
+                    self.transcript = result.bestTranscription.formattedString
                 }
 
                 if error != nil {
-                    guard self?.isRecording == true else { return }
-                    self?.errorMessage = "语音输入中断。"
-                    self?.stop()
+                    guard self.isRecording else { return }
+                    self.errorMessage = "语音输入中断。"
+                    self.stop()
                 }
             }
         }
