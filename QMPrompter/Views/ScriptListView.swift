@@ -120,7 +120,10 @@ struct ScriptListView: View {
     private func openPendingNewScriptAction() {
         guard let action = pendingNewScriptAction else { return }
         pendingNewScriptAction = nil
+        performNewScriptAction(action)
+    }
 
+    private func performNewScriptAction(_ action: NewScriptAction) {
         switch action {
         case .manualInput:
             draftScript = store.createDraft()
@@ -171,19 +174,37 @@ struct ScriptListView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 18) {
             Image(systemName: "doc.badge.plus")
                 .font(.system(size: 40, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 72, height: 72)
                 .homeToolbarSurface()
 
-            Text("还没有文稿")
+            Text("开始一篇文稿")
                 .font(.headline.weight(.semibold))
 
-            Text("点击右上角新建")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                NewScriptOptionButton(
+                    title: "手动输入",
+                    systemName: "square.and.pencil",
+                    action: {
+                        Haptics.selection()
+                        performNewScriptAction(.manualInput)
+                    }
+                )
+
+                NewScriptOptionButton(
+                    title: "AI 生成",
+                    systemName: "sparkles",
+                    action: {
+                        Haptics.selection()
+                        performNewScriptAction(.aiGeneration)
+                    }
+                )
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 60)
@@ -275,6 +296,7 @@ private struct NewScriptOptionButton: View {
             .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }
 
