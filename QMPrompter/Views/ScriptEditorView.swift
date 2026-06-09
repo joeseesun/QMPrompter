@@ -98,13 +98,7 @@ struct ScriptEditorView: View {
             .padding(.bottom, 8)
             .animation(.snappy(duration: 0.22), value: selectedTab)
             .background {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(alignment: .top) {
-                        Rectangle()
-                            .fill(.white.opacity(0.18))
-                            .frame(height: 0.5)
-                    }
+                EditorDockBackground()
             }
         }
         .toolbar {
@@ -166,11 +160,12 @@ struct ScriptEditorView: View {
         case .script:
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground).opacity(0.58))
+                    .fill(Color(.secondarySystemGroupedBackground).opacity(0.42))
                     .overlay(
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(.white.opacity(0.42), lineWidth: 0.7)
+                            .stroke(.white.opacity(0.34), lineWidth: 0.7)
                     )
+                    .shadow(color: .black.opacity(0.035), radius: 16, y: 8)
                     .padding(.horizontal, 14)
                     .padding(.top, 10)
 
@@ -415,6 +410,21 @@ private enum EditorTab: String, CaseIterable, Identifiable {
         case .script: "文稿"
         case .display: "显示"
         }
+    }
+}
+
+private struct EditorDockBackground: View {
+    var body: some View {
+        LinearGradient(
+            colors: [
+                Color(.systemGroupedBackground).opacity(0),
+                Color(.systemGroupedBackground).opacity(0.74),
+                Color(.systemGroupedBackground)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
     }
 }
 
