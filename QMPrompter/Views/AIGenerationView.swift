@@ -7,6 +7,7 @@ struct AIGenerationView: View {
 
     @StateObject private var dictation = PromptDictation()
     @State private var prompt = ""
+    @State private var promptBeforeDictation = ""
     @State private var isGenerating = false
     @State private var errorMessage: String?
     @State private var generationTask: Task<Void, Never>?
@@ -67,7 +68,7 @@ struct AIGenerationView: View {
                     isDisabled: isGenerating
                 ) {
                     Haptics.lightImpact()
-                    dictation.toggle()
+                    toggleDictation()
                 }
                 .padding(.top, 10)
                 .padding(.bottom, 8)
@@ -75,7 +76,7 @@ struct AIGenerationView: View {
             }
             .onChange(of: dictation.transcript) { _, transcript in
                 guard !transcript.isEmpty else { return }
-                prompt = transcript
+                prompt = mergedDictationPrompt(with: transcript)
             }
             .onDisappear {
                 cancelGeneration()
@@ -135,6 +136,25 @@ struct AIGenerationView: View {
     private func close() {
         dictation.stop()
         dismiss()
+    }
+
+    private func toggleDictation() {
+        if dictation.isRecording {
+            dictation.stop()
+            return
+        }
+
+        promptBeforeDictation = prompt
+        dictation.start()
+    }
+
+    private func mergedDictationPrompt(with transcript: String) -> String {
+        let base = promptBeforeDictation.trimmingCharacters(in: .whitespacesAndNewlines)
+        let spoken = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !base.isEmpty else { return spoken }
+        guard !spoken.isEmpty else { return base }
+        return base + "\n" + spoken
     }
 
     private func generate() async {
