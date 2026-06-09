@@ -8,7 +8,7 @@ struct GlassActionPanel<Content: View>: View {
     var body: some View {
         if isPresented {
             ZStack(alignment: .bottom) {
-                Color.black.opacity(0.08)
+                Color.black.opacity(0.045)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture(perform: onDismiss)
@@ -45,10 +45,10 @@ struct GlassActionRow: View {
                     .frame(width: 38, height: 38)
                     .foregroundStyle(.primary)
                     .opacity(isDestructive ? 0.86 : 1)
-                    .background(.white.opacity(0.42), in: Circle())
+                    .background(.white.opacity(0.24), in: Circle())
                     .overlay(
                         Circle()
-                            .stroke(.white.opacity(0.45), lineWidth: 0.6)
+                            .stroke(.white.opacity(0.36), lineWidth: 0.6)
                     )
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -80,7 +80,7 @@ struct GlassActionRow: View {
     }
 
     private var rowBackground: some ShapeStyle {
-        isDestructive ? AnyShapeStyle(.white.opacity(0.34)) : AnyShapeStyle(.white.opacity(0.44))
+        isDestructive ? AnyShapeStyle(.white.opacity(0.24)) : AnyShapeStyle(.white.opacity(0.26))
     }
 }
 
@@ -91,13 +91,13 @@ private extension View {
 
         if #available(iOS 26.0, *) {
             glassEffect(.regular.tint(.white.opacity(0.05)).interactive(), in: shape)
-                .background(.white.opacity(0.30), in: shape)
+                .background(.white.opacity(0.18), in: shape)
                 .overlay(panelBorder(shape))
-                .shadow(color: .black.opacity(0.09), radius: 26, y: 14)
+                .shadow(color: .black.opacity(0.08), radius: 24, y: 12)
         } else {
             background(.regularMaterial, in: shape)
                 .overlay(panelBorder(shape))
-                .shadow(color: .black.opacity(0.09), radius: 24, y: 13)
+                .shadow(color: .black.opacity(0.08), radius: 22, y: 11)
         }
     }
 
@@ -105,8 +105,8 @@ private extension View {
         shape.stroke(
             LinearGradient(
                 colors: [
-                    .white.opacity(0.68),
-                    .white.opacity(0.22),
+                    .white.opacity(0.52),
+                    .white.opacity(0.18),
                     .black.opacity(0.04)
                 ],
                 startPoint: .topLeading,

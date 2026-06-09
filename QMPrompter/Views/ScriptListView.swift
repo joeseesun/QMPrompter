@@ -264,8 +264,8 @@ private extension View {
         shape.fill(
             LinearGradient(
                 colors: [
-                    .white.opacity(0.62),
-                    .white.opacity(0.38)
+                    .white.opacity(0.46),
+                    .white.opacity(0.22)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -277,8 +277,8 @@ private extension View {
         shape.stroke(
             LinearGradient(
                 colors: [
-                    .white.opacity(0.70),
-                    .white.opacity(0.20),
+                    .white.opacity(0.58),
+                    .white.opacity(0.16),
                     .black.opacity(0.035)
                 ],
                 startPoint: .topLeading,

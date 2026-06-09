@@ -23,6 +23,7 @@ final class SpeechFollower: ObservableObject {
     private var startTask: Task<Void, Never>?
     private var scriptIndex = SpeechScriptIndex(content: "")
     private var inputTapInstalled = false
+    private var recognitionSessionID = UUID()
 
     var isListening: Bool {
         state == .listening
@@ -55,6 +56,7 @@ final class SpeechFollower: ObservableObject {
     }
 
     func stop() {
+        recognitionSessionID = UUID()
         startTask?.cancel()
         startTask = nil
 
@@ -142,14 +144,18 @@ final class SpeechFollower: ObservableObject {
         }
 
         state = .listening
+        let sessionID = UUID()
+        recognitionSessionID = sessionID
         recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
-                self?.handleRecognition(result: result, error: error)
+                self?.handleRecognition(result: result, error: error, sessionID: sessionID)
             }
         }
     }
 
-    private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
+    private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?, sessionID: UUID) {
+        guard sessionID == recognitionSessionID else { return }
+
         if let result {
             transcript = result.bestTranscription.formattedString
             progress = scriptIndex.progress(for: transcript)
@@ -292,8 +298,12 @@ private struct SpeechScriptIndex {
 
     private func isPlausibleMatch(startOffset: Int, endOffset: Int, fragmentLength: Int) -> Bool {
         if committedOffset == 0 {
-            let earlyWindow = min(max(80, normalizedContent.count / 5), max(80, fragmentLength * 16))
-            return fragmentLength >= 8 || startOffset <= earlyWindow
+            guard fragmentLength >= 6 else {
+                return startOffset <= 8
+            }
+
+            let earlyWindow = min(max(28, normalizedContent.count / 10), max(44, fragmentLength * 7))
+            return startOffset <= earlyWindow
         }
 
         let backwardTolerance = max(12, fragmentLength * 2)
@@ -301,8 +311,8 @@ private struct SpeechScriptIndex {
             return false
         }
 
-        let forwardTolerance = max(80, fragmentLength * 18)
-        if fragmentLength < 12, startOffset > committedOffset + forwardTolerance {
+        let forwardTolerance = fragmentLength < 8 ? max(28, fragmentLength * 6) : max(72, fragmentLength * 14)
+        if startOffset > committedOffset + forwardTolerance {
             return false
         }
 

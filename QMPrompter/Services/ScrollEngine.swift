@@ -3,10 +3,16 @@ import QuartzCore
 import SwiftUI
 
 @MainActor
-final class ScrollEngine: ObservableObject {
+final class ScrollPosition: ObservableObject {
     @Published var offset: CGFloat = 0
+}
+
+@MainActor
+final class ScrollEngine: ObservableObject {
     @Published var isPlaying = false
     @Published var speed: Double = 80
+
+    let position = ScrollPosition()
 
     private var displayLink: CADisplayLink?
     private var lastTimestamp: CFTimeInterval = 0
@@ -14,6 +20,10 @@ final class ScrollEngine: ObservableObject {
     private var averageCharactersPerLine: CGFloat = 18
     private var maximumOffset: CGFloat = 0
     private var followTargetOffset: CGFloat?
+
+    var offset: CGFloat {
+        position.offset
+    }
 
     deinit {
         displayLink?.invalidate()
@@ -25,11 +35,13 @@ final class ScrollEngine: ObservableObject {
         averageCharactersPerLine: CGFloat,
         maximumOffset: CGFloat
     ) {
-        self.speed = speed
+        if self.speed != speed {
+            self.speed = speed
+        }
         self.lineHeight = max(40, lineHeight)
         self.averageCharactersPerLine = max(6, averageCharactersPerLine)
         self.maximumOffset = max(0, maximumOffset)
-        offset = min(offset, self.maximumOffset)
+        applyOffset(min(offset, self.maximumOffset))
         if let followTargetOffset {
             self.followTargetOffset = min(self.maximumOffset, max(0, followTargetOffset))
         }
@@ -51,7 +63,10 @@ final class ScrollEngine: ObservableObject {
     }
 
     func setSpeed(_ value: Double) {
-        speed = min(260, max(20, value))
+        let next = min(260, max(20, value))
+        if speed != next {
+            speed = next
+        }
     }
 
     func setOffset(_ value: CGFloat) {
@@ -70,14 +85,17 @@ final class ScrollEngine: ObservableObject {
     }
 
     private func applyOffset(_ value: CGFloat) {
-        offset = min(maximumOffset, max(0, value))
-        if offset >= maximumOffset {
+        let next = min(maximumOffset, max(0, value))
+        if position.offset != next {
+            position.offset = next
+        }
+        if position.offset >= maximumOffset {
             pause()
         }
     }
 
     func reset() {
-        offset = 0
+        position.offset = 0
         followTargetOffset = nil
         pause()
     }

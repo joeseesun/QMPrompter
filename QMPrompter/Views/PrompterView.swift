@@ -13,39 +13,29 @@ struct PrompterView: View {
     @State private var dragMode: DragMode?
     @State private var dragStartSpeed: Double = 0
     @State private var dragStartOffset: CGFloat = 0
-    @State private var promptLines: [PromptLine] = []
+    @State private var promptLayout: PromptLayout = .empty
     @State private var lastFormattedWidth: CGFloat = 0
     @State private var lastFormattedFontSize: Double = 0
     @State private var lastFormattedContent = ""
     @State private var latestMaximumOffset: CGFloat = 0
     @State private var hasStartedDefaultSpeech = false
     @State private var speechStartPending = false
+    @State private var pendingSettingsSave = false
+    @State private var settingsSaveTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { proxy in
-            let targetCharacters = targetCharactersPerLine(width: proxy.size.width, fontSize: script.fontSize)
-            let visibleLines = promptLines.isEmpty ? PromptFormatter.lines(from: script.content, targetCharactersPerLine: targetCharacters) : promptLines
-            let fontSize = CGFloat(script.fontSize)
-            let baseLineHeight = promptBaseLineHeight(fontSize: fontSize)
-            let lineLayouts = promptLineLayouts(
-                for: visibleLines,
-                width: proxy.size.width,
-                fontSize: fontSize,
-                baseLineHeight: baseLineHeight
-            )
-            let contentHeight = lineLayouts.last.map { $0.y + $0.height } ?? 0
-            let averageLineHeight = averagePromptLineHeight(for: lineLayouts, fallback: baseLineHeight)
+            let layout = promptLayout
             let topPadding = proxy.size.height * 0.40
             let isSpeedMode = !speechStartPending && speechFollower.state == .idle
             let bottomPadding = proxy.size.height * (showSettingsPanel ? (isSpeedMode ? 0.46 : 0.40) : 0.34)
-            let totalHeight = contentHeight + topPadding + bottomPadding
+            let totalHeight = layout.contentHeight + topPadding + bottomPadding
             let maxOffset = max(0, totalHeight - proxy.size.height)
-            let averageCharacters = averageCharactersPerLine(for: visibleLines)
             let scrollingIndex = lineIndex(
-                atContentY: max(0, engine.offset - topPadding + averageLineHeight * 0.42),
-                layouts: lineLayouts
+                atContentY: max(0, engine.offset - topPadding + layout.averageLineHeight * 0.42),
+                layouts: layout.lineLayouts
             )
-            let currentIndex = visibleLines.isEmpty ? 0 : (speechFollower.isListening ? min(visibleLines.count - 1, max(0, speechLineIndex ?? scrollingIndex)) : scrollingIndex)
+            let currentIndex = layout.lines.isEmpty ? 0 : (speechFollower.isListening ? min(layout.lines.count - 1, max(0, speechLineIndex ?? scrollingIndex)) : scrollingIndex)
             let shouldHighlightCurrentLine = speechFollower.isListening
 
             ZStack {
@@ -59,10 +49,11 @@ struct PrompterView: View {
 
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
-                    promptLayer(
-                        lineLayouts: lineLayouts,
+                    PromptTextLayer(
+                        position: engine.position,
+                        script: script,
+                        layout: layout,
                         topPadding: topPadding,
-                        bottomPadding: bottomPadding,
                         currentIndex: currentIndex,
                         shouldHighlightCurrentLine: shouldHighlightCurrentLine,
                         viewportHeight: proxy.size.height
@@ -98,64 +89,48 @@ struct PrompterView: View {
             .persistentSystemOverlays(.hidden)
             .contentShape(Rectangle())
             .onAppear {
-                refreshPromptLines(width: proxy.size.width)
-                latestMaximumOffset = maxOffset
-                engine.configure(
-                    speed: script.scrollSpeed,
-                    lineHeight: averageLineHeight,
-                    averageCharactersPerLine: averageCharacters,
-                    maximumOffset: maxOffset
+                let updatedLayout = refreshPromptLayout(width: proxy.size.width)
+                let updatedMaxOffset = maximumOffset(
+                    for: updatedLayout,
+                    viewportHeight: proxy.size.height,
+                    topPadding: topPadding,
+                    bottomPadding: bottomPadding
                 )
-                startDefaultSpeechIfNeeded(maxOffset: maxOffset)
+                latestMaximumOffset = updatedMaxOffset
+                configureEngine(with: updatedLayout, maximumOffset: updatedMaxOffset)
+                startDefaultSpeechIfNeeded(maxOffset: updatedMaxOffset)
             }
             .onChange(of: script.scrollSpeed) { _, value in
                 engine.setSpeed(value)
             }
             .onChange(of: engine.speed) { _, value in
                 script.scrollSpeed = value
-                onSave()
+                scheduleSettingsSave()
             }
             .onChange(of: script.fontSize) { _, _ in
-                refreshPromptLines(width: proxy.size.width)
-                engine.configure(
-                    speed: script.scrollSpeed,
-                    lineHeight: averageLineHeight,
-                    averageCharactersPerLine: averageCharacters,
-                    maximumOffset: maxOffset
-                )
-                onSave()
+                let updatedLayout = refreshPromptLayout(width: proxy.size.width)
+                configureEngine(with: updatedLayout, maximumOffset: maxOffset)
+                scheduleSettingsSave()
             }
             .onChange(of: script.content) { _, _ in
-                refreshPromptLines(width: proxy.size.width)
+                let updatedLayout = refreshPromptLayout(width: proxy.size.width)
+                configureEngine(with: updatedLayout, maximumOffset: maxOffset)
             }
             .onChange(of: proxy.size.width) { _, width in
-                refreshPromptLines(width: width)
-            }
-            .onChange(of: promptLines) { _, lines in
-                latestMaximumOffset = maxOffset
-                engine.configure(
-                    speed: script.scrollSpeed,
-                    lineHeight: averageLineHeight,
-                    averageCharactersPerLine: averageCharactersPerLine(for: lines),
-                    maximumOffset: maxOffset
-                )
+                let updatedLayout = refreshPromptLayout(width: width)
+                configureEngine(with: updatedLayout, maximumOffset: maxOffset)
             }
             .onChange(of: maxOffset) { _, value in
                 latestMaximumOffset = value
-                engine.configure(
-                    speed: script.scrollSpeed,
-                    lineHeight: averageLineHeight,
-                    averageCharactersPerLine: averageCharacters,
-                    maximumOffset: value
-                )
+                configureEngine(with: layout, maximumOffset: value)
             }
             .onChange(of: speechFollower.progress) { _, progress in
                 guard speechFollower.isListening else { return }
-                let lineIndex = speechLineIndex(for: progress, promptLines: visibleLines)
+                let lineIndex = speechLineIndex(for: progress, promptLines: layout.lines)
                 speechLineIndex = lineIndex
                 engine.follow(to: speechTargetOffset(
                     for: lineIndex,
-                    layouts: lineLayouts,
+                    layouts: layout.lineLayouts,
                     topPadding: topPadding,
                     viewportHeight: proxy.size.height,
                     maximumOffset: maxOffset
@@ -170,29 +145,90 @@ struct PrompterView: View {
                     engine.stopFollowing()
                 }
             }
-            .onChange(of: script.textColorPreset) { _, _ in onSave() }
-            .onChange(of: script.overlayOpacity) { _, _ in onSave() }
+            .onChange(of: script.textColorPreset) { _, _ in scheduleSettingsSave() }
+            .onChange(of: script.overlayOpacity) { _, _ in scheduleSettingsSave() }
             .onDisappear {
+                flushPendingSettingsSave()
                 speechFollower.stop()
                 engine.stopFollowing()
             }
         }
     }
 
-    private func refreshPromptLines(width: CGFloat) {
+    @discardableResult
+    private func refreshPromptLayout(width: CGFloat) -> PromptLayout {
         let normalizedWidth = max(1, width.rounded(.down))
         guard normalizedWidth != lastFormattedWidth ||
             script.fontSize != lastFormattedFontSize ||
             script.content != lastFormattedContent
         else {
-            return
+            return promptLayout
         }
 
         let targetCharacters = targetCharactersPerLine(width: width, fontSize: script.fontSize)
-        promptLines = PromptFormatter.lines(from: script.content, targetCharactersPerLine: targetCharacters)
+        let lines = PromptFormatter.lines(from: script.content, targetCharactersPerLine: targetCharacters)
+        let fontSize = CGFloat(script.fontSize)
+        let baseLineHeight = promptBaseLineHeight(fontSize: fontSize)
+        let lineLayouts = promptLineLayouts(
+            for: lines,
+            width: width,
+            fontSize: fontSize,
+            baseLineHeight: baseLineHeight
+        )
+        let layout = PromptLayout(
+            lines: lines,
+            lineLayouts: lineLayouts,
+            contentHeight: lineLayouts.last.map { $0.y + $0.height } ?? 0,
+            averageLineHeight: averagePromptLineHeight(for: lineLayouts, fallback: baseLineHeight),
+            averageCharactersPerLine: averageCharactersPerLine(for: lines)
+        )
+
+        promptLayout = layout
         lastFormattedWidth = normalizedWidth
         lastFormattedFontSize = script.fontSize
         lastFormattedContent = script.content
+        return layout
+    }
+
+    private func configureEngine(with layout: PromptLayout, maximumOffset: CGFloat) {
+        engine.configure(
+            speed: script.scrollSpeed,
+            lineHeight: layout.averageLineHeight,
+            averageCharactersPerLine: layout.averageCharactersPerLine,
+            maximumOffset: maximumOffset
+        )
+    }
+
+    private func maximumOffset(
+        for layout: PromptLayout,
+        viewportHeight: CGFloat,
+        topPadding: CGFloat,
+        bottomPadding: CGFloat
+    ) -> CGFloat {
+        max(0, layout.contentHeight + topPadding + bottomPadding - viewportHeight)
+    }
+
+    private func scheduleSettingsSave() {
+        pendingSettingsSave = true
+        settingsSaveTask?.cancel()
+        settingsSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                pendingSettingsSave = false
+                onSave()
+            }
+        }
+    }
+
+    private func flushPendingSettingsSave() {
+        settingsSaveTask?.cancel()
+        settingsSaveTask = nil
+
+        if pendingSettingsSave {
+            pendingSettingsSave = false
+            onSave()
+        }
     }
 
     private func targetCharactersPerLine(width: CGFloat, fontSize: Double) -> Int {
@@ -403,58 +439,6 @@ struct PrompterView: View {
         }
     }
 
-    private func promptLayer(
-        lineLayouts: [PromptLineLayout],
-        topPadding: CGFloat,
-        bottomPadding: CGFloat,
-        currentIndex: Int,
-        shouldHighlightCurrentLine: Bool,
-        viewportHeight: CGFloat
-    ) -> some View {
-        let visibleRange = visibleLayoutRange(
-            layouts: lineLayouts,
-            topPadding: topPadding,
-            viewportHeight: viewportHeight
-        )
-
-        return ZStack(alignment: .top) {
-            ForEach(Array(visibleRange), id: \.self) { index in
-                let layout = lineLayouts[index]
-                let line = layout.line
-                let isHighlighted = shouldHighlightCurrentLine && layout.index == currentIndex && isSpeakableLine(line.text)
-
-                Text(line.text)
-                    .font(.system(size: script.fontSize, weight: .semibold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(promptLineSpacing(fontSize: CGFloat(script.fontSize)))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .foregroundStyle(isHighlighted ? Color.white : script.textColorPreset.color.opacity(0.62))
-                    .shadow(color: isHighlighted ? .white.opacity(0.46) : .clear, radius: 11, y: 0)
-                    .shadow(color: isHighlighted ? .black.opacity(0.36) : .clear, radius: 4, y: 1)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: layout.height)
-                    .padding(.horizontal, 20)
-                    .animation(.easeInOut(duration: 0.16), value: currentIndex)
-                    .offset(y: topPadding + layout.y - engine.offset)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    private func visibleLayoutRange(
-        layouts: [PromptLineLayout],
-        topPadding: CGFloat,
-        viewportHeight: CGFloat
-    ) -> Range<Int> {
-        guard !layouts.isEmpty else { return 0..<0 }
-
-        let visibleTop = engine.offset - topPadding - viewportHeight * 0.35
-        let visibleBottom = engine.offset - topPadding + viewportHeight * 1.35
-        let start = layouts.firstIndex { $0.y + $0.height >= visibleTop }.map { max(0, $0 - 2) } ?? 0
-        let end = layouts.firstIndex { $0.y > visibleBottom }.map { min(layouts.count, $0 + 2) } ?? layouts.count
-        return start..<end
-    }
-
     private func interactionLayer(
         in size: CGSize,
         topReservedHeight: CGFloat,
@@ -613,14 +597,10 @@ struct PrompterView: View {
     }
 
     private func progressSlider(maxOffset: CGFloat) -> some View {
-        controlSlider(
-            title: "进度",
-            value: Binding(
-                get: { Double(engine.offset) },
-                set: { engine.setOffset(CGFloat($0)) }
-            ),
-            range: 0...max(1, Double(maxOffset)),
-            label: "\(Int(progress(maxOffset: maxOffset) * 100))%"
+        PromptProgressSlider(
+            position: engine.position,
+            maxOffset: maxOffset,
+            setOffset: { engine.setOffset($0) }
         )
     }
 
@@ -802,6 +782,110 @@ private struct PromptLineLayout: Equatable {
     let line: PromptLine
     let y: CGFloat
     let height: CGFloat
+}
+
+private struct PromptLayout: Equatable {
+    static let empty = PromptLayout(
+        lines: [],
+        lineLayouts: [],
+        contentHeight: 0,
+        averageLineHeight: 84,
+        averageCharactersPerLine: 18
+    )
+
+    let lines: [PromptLine]
+    let lineLayouts: [PromptLineLayout]
+    let contentHeight: CGFloat
+    let averageLineHeight: CGFloat
+    let averageCharactersPerLine: CGFloat
+}
+
+private struct PromptTextLayer: View {
+    @ObservedObject var position: ScrollPosition
+
+    let script: Script
+    let layout: PromptLayout
+    let topPadding: CGFloat
+    let currentIndex: Int
+    let shouldHighlightCurrentLine: Bool
+    let viewportHeight: CGFloat
+
+    var body: some View {
+        let visibleRange = visibleLayoutRange
+
+        ZStack(alignment: .top) {
+            ForEach(Array(visibleRange), id: \.self) { index in
+                let lineLayout = layout.lineLayouts[index]
+                let isHighlighted = shouldHighlightCurrentLine &&
+                    lineLayout.index == currentIndex &&
+                    isSpeakableLine(lineLayout.line.text)
+
+                Text(lineLayout.line.text)
+                    .font(.system(size: script.fontSize, weight: .semibold, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(max(4, CGFloat(script.fontSize) * 0.10))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(isHighlighted ? Color.white : script.textColorPreset.color.opacity(0.62))
+                    .shadow(color: isHighlighted ? .white.opacity(0.46) : .clear, radius: 11)
+                    .shadow(color: isHighlighted ? .black.opacity(0.36) : .clear, radius: 4, y: 1)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: lineLayout.height)
+                    .padding(.horizontal, 20)
+                    .animation(.easeInOut(duration: 0.16), value: currentIndex)
+                    .offset(y: topPadding + lineLayout.y - position.offset)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var visibleLayoutRange: Range<Int> {
+        guard !layout.lineLayouts.isEmpty else { return 0..<0 }
+
+        let visibleTop = position.offset - topPadding - viewportHeight * 0.35
+        let visibleBottom = position.offset - topPadding + viewportHeight * 1.35
+        let start = layout.lineLayouts.firstIndex { $0.y + $0.height >= visibleTop }.map { max(0, $0 - 2) } ?? 0
+        let end = layout.lineLayouts.firstIndex { $0.y > visibleBottom }.map { min(layout.lineLayouts.count, $0 + 2) } ?? layout.lineLayouts.count
+        return start..<end
+    }
+
+    private func isSpeakableLine(_ text: String) -> Bool {
+        text.contains { $0.isLetter || $0.isNumber }
+    }
+}
+
+private struct PromptProgressSlider: View {
+    @ObservedObject var position: ScrollPosition
+
+    let maxOffset: CGFloat
+    let setOffset: (CGFloat) -> Void
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text("进度")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.72))
+                Spacer()
+                Text("\(Int(progress * 100))%")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.white)
+            }
+
+            Slider(
+                value: Binding(
+                    get: { Double(position.offset) },
+                    set: { setOffset(CGFloat($0)) }
+                ),
+                in: 0...max(1, Double(maxOffset))
+            )
+            .tint(.white.opacity(0.86))
+        }
+    }
+
+    private var progress: CGFloat {
+        guard maxOffset > 0 else { return 0 }
+        return min(1, max(0, position.offset / maxOffset))
+    }
 }
 
 private enum DragMode {
