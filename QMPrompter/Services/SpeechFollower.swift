@@ -229,7 +229,10 @@ private struct SpeechScriptIndex {
         }
 
         if let matchOffset = bestMatchEndOffset(for: spoken) {
-            committedOffset = max(committedOffset, matchOffset)
+            committedOffset = max(
+                committedOffset,
+                boundedMatchOffset(matchOffset, spokenCount: spoken.count)
+            )
         } else if committedOffset == 0 {
             committedOffset = max(committedOffset, commonPrefixCount(spoken))
         }
@@ -302,7 +305,7 @@ private struct SpeechScriptIndex {
                 return startOffset <= 8
             }
 
-            let earlyWindow = min(max(28, normalizedContent.count / 10), max(44, fragmentLength * 7))
+            let earlyWindow = max(12, min(40, fragmentLength * 2))
             return startOffset <= earlyWindow
         }
 
@@ -311,7 +314,7 @@ private struct SpeechScriptIndex {
             return false
         }
 
-        let forwardTolerance = fragmentLength < 8 ? max(28, fragmentLength * 6) : max(72, fragmentLength * 14)
+        let forwardTolerance = fragmentLength < 8 ? max(22, fragmentLength * 4) : max(56, fragmentLength * 8)
         if startOffset > committedOffset + forwardTolerance {
             return false
         }
@@ -322,12 +325,18 @@ private struct SpeechScriptIndex {
     private func matchScore(startOffset: Int, endOffset: Int, fragmentLength: Int) -> Int {
         let anchorDistance = abs(startOffset - committedOffset)
         let backwardPenalty = max(0, committedOffset - endOffset)
-        let initialPenalty = committedOffset == 0 ? startOffset * 3 : 0
+        let initialPenalty = committedOffset == 0 ? startOffset * 20 : 0
 
         return fragmentLength * 1_000
-            - anchorDistance * 3
+            - anchorDistance * 5
             - backwardPenalty * 8
             - initialPenalty
+    }
+
+    private func boundedMatchOffset(_ matchOffset: Int, spokenCount: Int) -> Int {
+        guard matchOffset > committedOffset else { return matchOffset }
+        let maximumAdvance = max(18, min(140, spokenCount * 2 + 10))
+        return min(matchOffset, committedOffset + maximumAdvance)
     }
 
     private func progress(atOffset offset: Int) -> Double {
