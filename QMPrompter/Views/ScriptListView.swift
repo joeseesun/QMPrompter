@@ -9,6 +9,7 @@ struct ScriptListView: View {
     @State private var showSettings = false
     @State private var showAIGeneration = false
     @State private var pendingGeneratedScriptID: Script.ID?
+    @FocusState private var searchFocused: Bool
 
     private var filteredScripts: [Script] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -22,59 +23,31 @@ struct ScriptListView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            Group {
+            ZStack {
+                HomeAmbientBackground()
+
                 if store.scripts.isEmpty {
-                    ContentUnavailableView("还没有文稿", systemImage: "doc.badge.plus", description: Text("新建一篇正文后即可开始提词。"))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(HomeAmbientBackground())
+                    emptyState
                 } else {
-                    List {
-                        Section {
-                            ForEach(filteredScripts) { script in
-                                Button {
-                                    path.append(script.id)
-                                } label: {
-                                    ScriptCard(script: script)
-                                }
-                                .buttonStyle(.plain)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-                                .listRowBackground(Color.clear)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        store.delete(script)
-                                    } label: {
-                                        Label("删除", systemImage: "trash")
-                                    }
-                                }
-                            }
-                            .onDelete(perform: deleteFilteredScripts)
-                        } header: {
-                            Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "提词器文稿" : "搜索结果")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .textCase(nil)
-                        }
-                    }
-                    .listStyle(.plain)
-                    .environment(\.defaultMinListRowHeight, 0)
-                    .scrollContentBackground(.hidden)
-                    .background(HomeAmbientBackground())
-                    .overlay {
-                        if filteredScripts.isEmpty {
-                            ContentUnavailableView("没有找到文稿", systemImage: "magnifyingglass", description: Text("换个关键词试试。"))
-                        }
-                    }
+                    scriptScrollView
                 }
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, prompt: "搜索文稿")
             .navigationDestination(for: Script.ID.self) { id in
                 if let script = store.script(with: id) {
                     ScriptEditorView(script: script)
                 } else {
                     ContentUnavailableView("文稿不存在", systemImage: "doc.text.magnifyingglass")
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if !store.scripts.isEmpty {
+                    HomeSearchBar(text: $searchText, isFocused: $searchFocused)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 8)
+                        .background(HomeSearchDockBackground())
                 }
             }
             .toolbar {
@@ -83,7 +56,12 @@ struct ScriptListView: View {
                         showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
+                            .font(.system(size: 20, weight: .semibold))
+                            .frame(width: 46, height: 46)
+                            .homeToolbarSurface()
+                            .contentShape(Circle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("设置")
                 }
 
@@ -102,7 +80,12 @@ struct ScriptListView: View {
                         }
                     } label: {
                         Image(systemName: "plus")
+                            .font(.system(size: 24, weight: .semibold))
+                            .frame(width: 46, height: 46)
+                            .homeToolbarSurface()
+                            .contentShape(Circle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("新建文稿")
                 }
             }
@@ -124,13 +107,76 @@ struct ScriptListView: View {
         }
     }
 
-    private func deleteFilteredScripts(at offsets: IndexSet) {
-        let scriptsToDelete = offsets.compactMap { index in
-            filteredScripts.indices.contains(index) ? filteredScripts[index] : nil
-        }
+    private var scriptScrollView: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "提词器文稿" : "搜索结果")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 10)
 
-        for script in scriptsToDelete {
-            store.delete(script)
+                if filteredScripts.isEmpty {
+                    searchEmptyState
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 64)
+                } else {
+                    ForEach(filteredScripts) { script in
+                        Button {
+                            searchFocused = false
+                            path.append(script.id)
+                        } label: {
+                            ScriptCard(script: script)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                store.delete(script)
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 112)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "doc.badge.plus")
+                .font(.system(size: 40, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 72, height: 72)
+                .homeToolbarSurface()
+
+            Text("还没有文稿")
+                .font(.headline.weight(.semibold))
+
+            Text("点击右上角新建")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.bottom, 60)
+    }
+
+    private var searchEmptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Text("没有找到文稿")
+                .font(.headline.weight(.semibold))
+
+            Text("换个关键词试试")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -141,12 +187,64 @@ struct ScriptListView: View {
     }
 }
 
+private struct HomeSearchBar: View {
+    @Binding var text: String
+    var isFocused: FocusState<Bool>.Binding
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            TextField("搜索文稿", text: $text)
+                .font(.system(size: 18, weight: .regular, design: .rounded))
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .focused(isFocused)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("清除搜索")
+            }
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .frame(height: 56)
+        .liquidSearchSurface()
+    }
+}
+
 private struct HomeAmbientBackground: View {
     var body: some View {
         LinearGradient(
             colors: [
                 Color(.systemBackground),
                 Color(.secondarySystemBackground).opacity(0.34),
+                Color(.systemBackground)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+    }
+}
+
+private struct HomeSearchDockBackground: View {
+    var body: some View {
+        LinearGradient(
+            colors: [
+                Color(.systemBackground).opacity(0),
+                Color(.systemBackground).opacity(0.72),
                 Color(.systemBackground)
             ],
             startPoint: .top,
@@ -226,12 +324,54 @@ private extension View {
         }
     }
 
+    @ViewBuilder
+    func liquidSearchSurface() -> some View {
+        let shape = Capsule()
+
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular.tint(.white.opacity(0.05)).interactive(), in: shape)
+                .background(.white.opacity(0.34), in: shape)
+                .overlay(
+                    shape.stroke(.white.opacity(0.46), lineWidth: 0.65)
+                )
+                .shadow(color: .black.opacity(0.065), radius: 18, y: 8)
+        } else {
+            background(.ultraThinMaterial, in: shape)
+                .background(.white.opacity(0.32), in: shape)
+                .overlay(
+                    shape.stroke(.white.opacity(0.40), lineWidth: 0.65)
+                )
+                .shadow(color: .black.opacity(0.06), radius: 16, y: 8)
+        }
+    }
+
+    @ViewBuilder
+    func homeToolbarSurface() -> some View {
+        let shape = Circle()
+
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular.tint(.white.opacity(0.04)).interactive(), in: shape)
+                .background(.white.opacity(0.28), in: shape)
+                .overlay(
+                    shape.stroke(.white.opacity(0.45), lineWidth: 0.7)
+                )
+                .shadow(color: .black.opacity(0.055), radius: 14, y: 7)
+        } else {
+            background(.ultraThinMaterial, in: shape)
+                .background(.white.opacity(0.26), in: shape)
+                .overlay(
+                    shape.stroke(.white.opacity(0.38), lineWidth: 0.7)
+                )
+                .shadow(color: .black.opacity(0.05), radius: 13, y: 7)
+        }
+    }
+
     private func cardFill(_ shape: RoundedRectangle) -> some View {
         shape.fill(
             LinearGradient(
                 colors: [
-                    .white.opacity(0.46),
-                    .white.opacity(0.22)
+                    .white.opacity(0.34),
+                    .white.opacity(0.16)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing

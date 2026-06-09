@@ -63,10 +63,7 @@ struct PrompterView: View {
                     Spacer(minLength: 0)
                 }
 
-                interactionLayer(
-                    topReservedHeight: proxy.safeAreaInsets.top + 96,
-                    bottomReservedHeight: proxy.safeAreaInsets.bottom + (showSettingsPanel ? (isSpeedMode ? 336 : 240) : 24)
-                )
+                interactionLayer()
                 .zIndex(1)
 
                 if !showSettingsPanel && maxOffset > 0 {
@@ -523,21 +520,11 @@ struct PrompterView: View {
         }
     }
 
-    private func interactionLayer(topReservedHeight: CGFloat, bottomReservedHeight: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            Color.clear
-                .frame(height: topReservedHeight)
-                .allowsHitTesting(false)
-
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture(perform: handleCanvasTap)
-                .gesture(manualScrollGesture)
-
-            Color.clear
-                .frame(height: bottomReservedHeight)
-                .allowsHitTesting(false)
-        }
+    private func interactionLayer() -> some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture(perform: handleCanvasTap)
+            .gesture(manualScrollGesture)
         .ignoresSafeArea()
     }
 
