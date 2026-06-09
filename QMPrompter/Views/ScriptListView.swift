@@ -324,7 +324,7 @@ private struct HomeSearchBar: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 30, height: 30)
+                        .frame(width: 44, height: 44)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)

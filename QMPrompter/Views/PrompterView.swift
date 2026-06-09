@@ -413,7 +413,7 @@ struct PrompterView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .bold))
-                        .frame(width: 42, height: 42)
+                        .frame(width: 46, height: 46)
                         .glassCircle()
                         .contentShape(Circle())
                         .foregroundStyle(.primary)
@@ -431,7 +431,7 @@ struct PrompterView: View {
                 } label: {
                     Image(systemName: showSettingsPanel ? "gearshape.fill" : "gearshape")
                         .font(.system(size: 15, weight: .bold))
-                        .frame(width: 42, height: 42)
+                        .frame(width: 46, height: 46)
                         .glassCircle()
                         .contentShape(Circle())
                         .foregroundStyle(.primary)
@@ -439,7 +439,7 @@ struct PrompterView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(showSettingsPanel ? "关闭设置" : "打开设置")
             }
-            .frame(height: 42, alignment: .center)
+            .frame(height: 46, alignment: .center)
             .overlay {
                 modeStatusButton
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
@@ -474,8 +474,8 @@ struct PrompterView: View {
                     .lineLimit(1)
             }
             .foregroundStyle(.primary)
-            .padding(.horizontal, 12)
-            .frame(height: 32)
+            .padding(.horizontal, 14)
+            .frame(height: 44)
             .glassCapsule()
             .contentShape(Capsule())
         }
@@ -666,7 +666,7 @@ struct PrompterView: View {
             } label: {
                 Image(systemName: engine.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 21, weight: .bold))
-                    .frame(width: 52, height: 42)
+                    .frame(width: 54, height: 44)
                     .foregroundStyle(.primary)
                     .glassCapsule()
                     .contentShape(Capsule())
@@ -728,7 +728,7 @@ struct PrompterView: View {
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: 18, weight: .semibold))
-                .frame(width: 42, height: 42)
+                .frame(width: 44, height: 44)
                 .foregroundStyle(.primary)
                 .glassCircle()
                 .contentShape(Circle())

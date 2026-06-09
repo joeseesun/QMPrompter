@@ -331,7 +331,7 @@ struct ScriptEditorView: View {
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: 15, weight: .semibold))
-                .frame(width: 34, height: 34)
+                .frame(width: 44, height: 44)
                 .foregroundStyle(isDisabled ? Color.secondary.opacity(0.45) : Color.primary)
                 .background(.ultraThinMaterial, in: Circle())
                 .overlay(
