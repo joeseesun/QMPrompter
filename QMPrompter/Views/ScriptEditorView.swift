@@ -11,6 +11,7 @@ struct ScriptEditorView: View {
     @State private var titleDraft = ""
     @State private var showClearConfirmation = false
     @State private var selectedTab: EditorTab = .script
+    @State private var autosaveTask: Task<Void, Never>?
     @FocusState private var editorFocused: Bool
 
     init(script: Script) {
@@ -158,8 +159,11 @@ struct ScriptEditorView: View {
         .onAppear {
             normalizeDisplaySettings()
         }
+        .onChange(of: script) { _, _ in
+            scheduleAutosave()
+        }
         .onDisappear {
-            saveIfPersistable()
+            flushPendingAutosave()
         }
     }
 
@@ -268,6 +272,7 @@ struct ScriptEditorView: View {
     private func clearContent() {
         script.content = ""
         if isStoredScript {
+            cancelScheduledAutosave()
             save()
         }
         editorFocused = true
@@ -278,6 +283,7 @@ struct ScriptEditorView: View {
 
         editorFocused = false
         normalizeDisplaySettings()
+        cancelScheduledAutosave()
         save()
 
         DispatchQueue.main.async {
@@ -379,6 +385,30 @@ struct ScriptEditorView: View {
             script.textColorPreset = .white
         }
         script.fontSize = min(110, max(12, script.fontSize))
+    }
+
+    private func scheduleAutosave() {
+        guard canPersistScript else { return }
+        autosaveTask?.cancel()
+        autosaveTask = Task {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard canPersistScript else { return }
+                autosaveTask = nil
+                save()
+            }
+        }
+    }
+
+    private func flushPendingAutosave() {
+        cancelScheduledAutosave()
+        saveIfPersistable()
+    }
+
+    private func cancelScheduledAutosave() {
+        autosaveTask?.cancel()
+        autosaveTask = nil
     }
 
     private func settingSlider(
