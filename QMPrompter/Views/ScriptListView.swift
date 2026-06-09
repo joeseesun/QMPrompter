@@ -6,9 +6,9 @@ struct ScriptListView: View {
     @State private var draftScript: Script?
     @State private var searchText = ""
     @State private var path = NavigationPath()
-    @State private var showCreatePanel = false
     @State private var showSettings = false
     @State private var showAIGeneration = false
+    @State private var pendingGeneratedScriptID: Script.ID?
 
     private var filteredScripts: [Script] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -86,80 +86,38 @@ struct ScriptListView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showCreatePanel = true
+                    Menu {
+                        Button {
+                            draftScript = store.createDraft()
+                        } label: {
+                            Label("手动输入", systemImage: "square.and.pencil")
+                        }
+
+                        Button {
+                            showAIGeneration = true
+                        } label: {
+                            Label("AI 生成", systemImage: "sparkles")
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
                     .accessibilityLabel("新建文稿")
                 }
             }
-            .overlay {
-                GlassActionPanel(isPresented: showCreatePanel) {
-                    showCreatePanel = false
-                } content: {
-                    createPanelContent
-                }
-            }
             .sheet(isPresented: $showSettings) {
                 AppSettingsView(apiKeyStore: apiKeyStore)
             }
-            .sheet(isPresented: $showAIGeneration) {
+            .sheet(isPresented: $showAIGeneration, onDismiss: openPendingGeneratedScript) {
                 AIGenerationView(apiKeyStore: apiKeyStore) { script in
                     store.save(script)
+                    pendingGeneratedScriptID = script.id
                     showAIGeneration = false
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        path.append(script.id)
-                    }
                 }
             }
             .sheet(item: $draftScript) { script in
                 NavigationStack {
                     ScriptEditorView(script: script)
                 }
-            }
-        }
-    }
-
-    private var createPanelContent: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Text("新建文稿")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-
-                Spacer()
-
-                Button {
-                    showCreatePanel = false
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 30, height: 30)
-                        .background(.white.opacity(0.36), in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("关闭")
-            }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 4)
-
-            GlassActionRow(
-                systemName: "square.and.pencil",
-                title: "手动输入",
-                subtitle: "从空白文稿开始"
-            ) {
-                showCreatePanel = false
-                draftScript = store.createDraft()
-            }
-
-            GlassActionRow(
-                systemName: "sparkles",
-                title: "AI 生成",
-                subtitle: "输入或语音描述主题，生成口播正文"
-            ) {
-                showCreatePanel = false
-                showAIGeneration = true
             }
         }
     }
@@ -172,6 +130,12 @@ struct ScriptListView: View {
         for script in scriptsToDelete {
             store.delete(script)
         }
+    }
+
+    private func openPendingGeneratedScript() {
+        guard let scriptID = pendingGeneratedScriptID else { return }
+        pendingGeneratedScriptID = nil
+        path.append(scriptID)
     }
 }
 

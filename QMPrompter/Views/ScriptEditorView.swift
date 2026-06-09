@@ -9,7 +9,7 @@ struct ScriptEditorView: View {
     @State private var showPrompter = false
     @State private var showTitleEditor = false
     @State private var titleDraft = ""
-    @State private var showClearPanel = false
+    @State private var showClearConfirmation = false
     @State private var selectedTab: EditorTab = .script
     @FocusState private var editorFocused: Bool
 
@@ -131,12 +131,15 @@ struct ScriptEditorView: View {
                 save()
             }
         }
-        .overlay {
-            GlassActionPanel(isPresented: showClearPanel) {
-                showClearPanel = false
-            } content: {
-                clearPanelContent
+        .confirmationDialog("清空正文", isPresented: $showClearConfirmation, titleVisibility: .visible) {
+            Button("清空正文", role: .destructive) {
+                script.content = ""
+                editorFocused = true
             }
+
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("文稿名和显示设置会保留。")
         }
         .onAppear {
             normalizeDisplaySettings()
@@ -152,59 +155,88 @@ struct ScriptEditorView: View {
     private var tabContent: some View {
         switch selectedTab {
         case .script:
-            Form {
-                Section {
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground).opacity(0.58))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(.white.opacity(0.42), lineWidth: 0.7)
+                    )
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+
+                ZStack(alignment: .topLeading) {
                     TextEditor(text: $script.content)
-                        .frame(minHeight: 420)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 16)
                         .font(.system(size: 17, weight: .regular, design: .default))
                         .lineSpacing(4)
                         .scrollContentBackground(.hidden)
                         .focused($editorFocused)
+
+                    if script.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("输入口播正文")
+                            .font(.system(size: 17))
+                            .foregroundStyle(.secondary.opacity(0.64))
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 24)
+                            .allowsHitTesting(false)
+                    }
                 }
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
             }
-            .scrollContentBackground(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemGroupedBackground))
         case .display:
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Label("字号", systemImage: "textformat.size")
-                            Spacer()
-                            Text("\(Int(script.fontSize))")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: $script.fontSize, in: 12...110, step: 1)
-                    }
+            ScrollView {
+                VStack(spacing: 12) {
+                    settingSlider(
+                        title: "字号",
+                        systemName: "textformat.size",
+                        value: $script.fontSize,
+                        range: 12...110,
+                        step: 1,
+                        label: "\(Int(script.fontSize))"
+                    )
+
+                    settingSlider(
+                        title: "速度",
+                        systemName: "speedometer",
+                        value: $script.scrollSpeed,
+                        range: 20...260,
+                        step: 2,
+                        label: "\(Int(script.scrollSpeed)) 字/分"
+                    )
 
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Label("速度", systemImage: "speedometer")
-                            Spacer()
-                            Text("\(Int(script.scrollSpeed)) 字/分")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: $script.scrollSpeed, in: 20...220, step: 2)
-                    }
+                        Label("文字颜色", systemImage: "circle.lefthalf.filled")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
 
-                    Picker("文字颜色", selection: $script.textColorPreset) {
-                        ForEach(TextColorPreset.editorChoices) { preset in
-                            Text(preset.name).tag(preset)
+                        Picker("文字颜色", selection: $script.textColorPreset) {
+                            ForEach(TextColorPreset.editorChoices) { preset in
+                                Text(preset.name).tag(preset)
+                            }
                         }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
+                    .editorSettingSurface()
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Label("摄像头透明度", systemImage: "camera.aperture")
-                            Spacer()
-                            Text("\(Int(cameraTransparency * 100))%")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: cameraTransparencyBinding, in: 0.18...0.82, step: 0.02)
-                    }
+                    settingSlider(
+                        title: "摄像头透明度",
+                        systemName: "camera.aperture",
+                        value: cameraTransparencyBinding,
+                        range: 0.18...0.82,
+                        step: 0.02,
+                        label: "\(Int(cameraTransparency * 100))%"
+                    )
                 }
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 128)
             }
-            .scrollContentBackground(.hidden)
+            .background(Color(.systemGroupedBackground))
         }
     }
 
@@ -257,7 +289,7 @@ struct ScriptEditorView: View {
                 label: "清空正文",
                 isDisabled: script.content.isEmpty
             ) {
-                showClearPanel = true
+                showClearConfirmation = true
             }
         }
         .frame(maxWidth: .infinity)
@@ -313,52 +345,37 @@ struct ScriptEditorView: View {
         editorFocused = true
     }
 
-    private var clearPanelContent: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Text("清空正文")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-
-                Spacer()
-
-                Button {
-                    showClearPanel = false
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 30, height: 30)
-                        .background(.white.opacity(0.36), in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("关闭")
-            }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 4)
-
-            Text("正文会被清空，文稿名和显示设置会保留。")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
-
-            GlassActionRow(
-                systemName: "trash",
-                title: "清空正文",
-                subtitle: nil,
-                isDestructive: true
-            ) {
-                script.content = ""
-                showClearPanel = false
-                editorFocused = true
-            }
-        }
-    }
-
     private func normalizeDisplaySettings() {
         if !TextColorPreset.editorChoices.contains(script.textColorPreset) {
             script.textColorPreset = .white
         }
         script.fontSize = min(110, max(12, script.fontSize))
+    }
+
+    private func settingSlider(
+        title: String,
+        systemName: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        label: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(title, systemImage: systemName)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text(label)
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.primary)
+            }
+
+            Slider(value: value, in: range, step: step)
+        }
+        .editorSettingSurface()
     }
 }
 
@@ -417,6 +434,25 @@ private extension View {
                         )
                 )
                 .shadow(color: .black.opacity(0.08), radius: 14, y: 7)
+        }
+    }
+
+    @ViewBuilder
+    func editorSettingSurface() -> some View {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular.tint(.white.opacity(0.03)).interactive(), in: shape)
+                .background(Color(.secondarySystemGroupedBackground).opacity(0.54), in: shape)
+                .overlay(
+                    shape.stroke(.white.opacity(0.38), lineWidth: 0.65)
+                )
+        } else {
+            background(.ultraThinMaterial, in: shape)
+                .background(Color(.secondarySystemGroupedBackground).opacity(0.54), in: shape)
+                .overlay(
+                    shape.stroke(.white.opacity(0.34), lineWidth: 0.65)
+                )
         }
     }
 
