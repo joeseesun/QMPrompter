@@ -59,6 +59,7 @@ struct PrompterView: View {
                         viewportHeight: proxy.size.height
                     )
                     .frame(height: proxy.size.height)
+                    .mask(PromptViewportFadeMask())
                     .clipped()
                     Spacer(minLength: 0)
                 }
@@ -894,7 +895,7 @@ private struct PromptTextLayer: View {
                     .lineSpacing(max(4, CGFloat(script.fontSize) * 0.10))
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
-                    .foregroundStyle(isHighlighted ? Color.white : script.textColorPreset.color.opacity(0.62))
+                    .foregroundStyle(textColor(isHighlighted: isHighlighted))
                     .shadow(color: isHighlighted ? .white.opacity(0.46) : .clear, radius: 11)
                     .shadow(color: isHighlighted ? .black.opacity(0.36) : .clear, radius: 4, y: 1)
                     .frame(width: layout.textWidth, height: lineLayout.height, alignment: .top)
@@ -951,6 +952,30 @@ private struct PromptTextLayer: View {
 
     private func isSpeakableLine(_ text: String) -> Bool {
         text.contains { $0.isLetter || $0.isNumber }
+    }
+
+    private func textColor(isHighlighted: Bool) -> Color {
+        if shouldHighlightCurrentLine {
+            return isHighlighted ? .white : script.textColorPreset.color.opacity(0.58)
+        }
+
+        return script.textColorPreset.color.opacity(0.92)
+    }
+}
+
+private struct PromptViewportFadeMask: View {
+    var body: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.08),
+                .init(color: .black, location: 0.90),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
     }
 }
 
