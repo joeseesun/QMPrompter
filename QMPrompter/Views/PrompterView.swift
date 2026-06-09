@@ -292,21 +292,21 @@ struct PrompterView: View {
     private func targetCharactersPerLine(width: CGFloat, fontSize: Double) -> Int {
         let usableWidth = max(220, width - 44)
         let fontSize = CGFloat(fontSize)
-        let estimatedCharacterWidth = max(8, fontSize * 0.82)
+        let estimatedCharacterWidth = PromptTypography.estimatedCharacterWidth(fontSize: fontSize)
         let estimatedCount = Int((usableWidth / estimatedCharacterWidth) * 0.88)
         return max(4, min(30, estimatedCount))
     }
 
     private func promptBaseLineHeight(fontSize: CGFloat) -> CGFloat {
-        max(fontSize * 1.34, fontSize + 12)
+        PromptTypography.baseLineHeight(fontSize: fontSize)
     }
 
     private func promptLineSpacing(fontSize: CGFloat) -> CGFloat {
-        max(4, fontSize * 0.10)
+        PromptTypography.lineSpacing(fontSize: fontSize)
     }
 
     private func promptTextWidth(for viewportWidth: CGFloat) -> CGFloat {
-        max(1, viewportWidth - 40)
+        PromptTypography.textWidth(for: viewportWidth)
     }
 
     private func promptLineLayouts(
@@ -337,12 +337,12 @@ struct PrompterView: View {
         fontSize: CGFloat,
         baseLineHeight: CGFloat
     ) -> CGFloat {
-        let verticalPadding = max(16, fontSize * 0.28)
+        let verticalPadding = PromptTypography.verticalPadding(fontSize: fontSize)
         guard !text.isEmpty else {
             return baseLineHeight * 0.72 + verticalPadding
         }
 
-        let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let font = PromptTypography.uiFont(fontSize: fontSize)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
         paragraphStyle.lineSpacing = promptLineSpacing(fontSize: fontSize)
@@ -361,14 +361,14 @@ struct PrompterView: View {
             context: nil
         )
         let estimatedLineCount = estimatedVisualLineCount(for: text, width: width, fontSize: fontSize)
-        let estimatedHeight = CGFloat(estimatedLineCount) * baseLineHeight
+        let estimatedHeight = CGFloat(estimatedLineCount) * max(baseLineHeight, font.lineHeight + paragraphStyle.lineSpacing)
 
-        return max(baseLineHeight, ceil(max(measured.height, estimatedHeight)) + verticalPadding)
+        return max(baseLineHeight + verticalPadding, ceil(max(measured.height, estimatedHeight)) + verticalPadding + 4)
     }
 
     private func estimatedVisualLineCount(for text: String, width: CGFloat, fontSize: CGFloat) -> Int {
         let visibleCharacterCount = max(1, text.filter { !$0.isWhitespace }.count)
-        let estimatedGlyphWidth = max(8, fontSize * 0.88)
+        let estimatedGlyphWidth = PromptTypography.estimatedGlyphWidth(fontSize: fontSize)
         let estimatedCharactersPerLine = max(1, Int((width / estimatedGlyphWidth).rounded(.down)))
         return max(1, Int(ceil(Double(visibleCharacterCount) / Double(estimatedCharactersPerLine))))
     }
@@ -955,6 +955,40 @@ private struct PromptLayout: Equatable {
     let averageCharactersPerLine: CGFloat
 }
 
+private enum PromptTypography {
+    static func baseLineHeight(fontSize: CGFloat) -> CGFloat {
+        max(fontSize * 1.38, fontSize + 14)
+    }
+
+    static func lineSpacing(fontSize: CGFloat) -> CGFloat {
+        max(5, fontSize * 0.12)
+    }
+
+    static func verticalPadding(fontSize: CGFloat) -> CGFloat {
+        max(18, fontSize * 0.34)
+    }
+
+    static func textWidth(for viewportWidth: CGFloat) -> CGFloat {
+        max(1, viewportWidth - 40)
+    }
+
+    static func estimatedCharacterWidth(fontSize: CGFloat) -> CGFloat {
+        max(8, fontSize * 0.82)
+    }
+
+    static func estimatedGlyphWidth(fontSize: CGFloat) -> CGFloat {
+        max(8, fontSize * 0.90)
+    }
+
+    static func uiFont(fontSize: CGFloat) -> UIFont {
+        let baseFont = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        guard let roundedDescriptor = baseFont.fontDescriptor.withDesign(.rounded) else {
+            return baseFont
+        }
+        return UIFont(descriptor: roundedDescriptor, size: fontSize)
+    }
+}
+
 private struct PromptTextLayer: View {
     @ObservedObject var position: ScrollPosition
 
@@ -975,21 +1009,20 @@ private struct PromptTextLayer: View {
                     lineLayout.index == currentIndex &&
                     isSpeakableLine(lineLayout.line.text)
 
-                Text(lineLayout.line.text)
-                    .font(.system(size: script.fontSize, weight: .semibold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(max(4, CGFloat(script.fontSize) * 0.10))
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .foregroundStyle(textColor(isHighlighted: isHighlighted))
-                    .shadow(color: isHighlighted ? .white.opacity(0.46) : .clear, radius: 11)
-                    .shadow(color: isHighlighted ? .black.opacity(0.36) : .clear, radius: 4, y: 1)
-                    .frame(width: layout.textWidth, height: lineLayout.height, alignment: .top)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .animation(.easeInOut(duration: 0.16), value: currentIndex)
-                    .offset(y: topPadding + lineLayout.y - position.offset)
+                PromptLineTextRow(
+                    text: lineLayout.line.text,
+                    fontSize: script.fontSize,
+                    textWidth: layout.textWidth,
+                    rowHeight: lineLayout.height,
+                    textColorPreset: script.textColorPreset,
+                    shouldDimInactiveLines: shouldHighlightCurrentLine,
+                    isHighlighted: isHighlighted
+                )
+                .equatable()
+                .offset(y: lineLayout.y)
             }
         }
+        .offset(y: topPadding - position.offset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
@@ -1039,13 +1072,52 @@ private struct PromptTextLayer: View {
     private func isSpeakableLine(_ text: String) -> Bool {
         text.contains { $0.isLetter || $0.isNumber }
     }
+}
 
-    private func textColor(isHighlighted: Bool) -> Color {
-        if shouldHighlightCurrentLine {
-            return isHighlighted ? .white : script.textColorPreset.color.opacity(0.58)
+private struct PromptLineTextRow: View, Equatable {
+    let text: String
+    let fontSize: Double
+    let textWidth: CGFloat
+    let rowHeight: CGFloat
+    let textColorPreset: TextColorPreset
+    let shouldDimInactiveLines: Bool
+    let isHighlighted: Bool
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: fontSize, weight: .semibold, design: .rounded))
+            .multilineTextAlignment(.center)
+            .lineSpacing(PromptTypography.lineSpacing(fontSize: CGFloat(fontSize)))
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(textColor)
+            .modifier(PromptLineHighlightShadow(isHighlighted: isHighlighted))
+            .frame(width: textWidth, height: rowHeight, alignment: .top)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .animation(.easeInOut(duration: 0.16), value: isHighlighted)
+    }
+
+    private var textColor: Color {
+        if shouldDimInactiveLines {
+            return isHighlighted ? .white : textColorPreset.color.opacity(0.58)
         }
 
-        return script.textColorPreset.color.opacity(0.92)
+        return textColorPreset.color.opacity(0.92)
+    }
+}
+
+private struct PromptLineHighlightShadow: ViewModifier {
+    let isHighlighted: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isHighlighted {
+            content
+                .shadow(color: .white.opacity(0.46), radius: 11)
+                .shadow(color: .black.opacity(0.36), radius: 4, y: 1)
+        } else {
+            content
+        }
     }
 }
 

@@ -29,13 +29,15 @@ enum PromptFormatter {
         var lines: [PromptLine] = []
         var current = ""
         let semanticMinimumLength = max(8, target)
+        let hardMaximumLength = max(semanticMinimumLength * 2, target + 10)
 
         for character in text {
             current.append(character)
             let shouldBreakAtStrongPunctuation = "。！？；.!?;".contains(character) && current.count >= 4
             let shouldBreakAtSoftPunctuation = "，、,：:".contains(character) && current.count >= semanticMinimumLength
+            let shouldBreakLongPhrase = current.count >= hardMaximumLength
 
-            if shouldBreakAtStrongPunctuation || shouldBreakAtSoftPunctuation {
+            if shouldBreakAtStrongPunctuation || shouldBreakAtSoftPunctuation || shouldBreakLongPhrase {
                 append(current, to: &lines, fallbackCount: target)
                 current = ""
             }
