@@ -30,6 +30,10 @@ struct AIGenerationView: View {
                         apiKeySetupCard
                     }
 
+                    if isGenerating {
+                        generationStatusCard
+                    }
+
                     if let message = errorMessage ?? dictation.errorMessage {
                         noticeCard(message, systemName: "exclamationmark.triangle")
                     }
@@ -152,6 +156,46 @@ struct AIGenerationView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("填写 DeepSeek API Key")
+    }
+
+    private var generationStatusCard: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.regular)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("正在生成文稿")
+                    .font(.system(size: 15, weight: .semibold))
+
+                Text("完成后会自动进入编辑页")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                Haptics.selection()
+                cancelGeneration()
+            } label: {
+                Text("取消")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .background(.white.opacity(0.34), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(.white.opacity(0.42), lineWidth: 0.6)
+                    )
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("取消生成")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .aiGenerationGlassSurface(cornerRadius: 18)
     }
 
     private func noticeCard(_ text: String, systemName: String) -> some View {
