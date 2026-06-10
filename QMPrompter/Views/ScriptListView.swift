@@ -104,7 +104,7 @@ struct ScriptListView: View {
             }
             .sheet(item: $draftScript) { script in
                 NavigationStack {
-                    ScriptEditorView(script: script)
+                    ScriptEditorView(script: script, showsCancelButton: true)
                 }
             }
             .confirmationDialog("删除文稿", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {

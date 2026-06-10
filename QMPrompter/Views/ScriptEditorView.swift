@@ -6,6 +6,7 @@ struct ScriptEditorView: View {
     @EnvironmentObject private var store: ScriptStore
 
     @State private var script: Script
+    @State private var shouldDiscardOnDisappear = false
     @State private var showPrompter = false
     @State private var showTitleEditor = false
     @State private var titleDraft = ""
@@ -13,9 +14,11 @@ struct ScriptEditorView: View {
     @State private var selectedTab: EditorTab = .script
     @State private var autosaveTask: Task<Void, Never>?
     @FocusState private var editorFocused: Bool
+    private let showsCancelButton: Bool
 
-    init(script: Script) {
+    init(script: Script, showsCancelButton: Bool = false) {
         _script = State(initialValue: script)
+        self.showsCancelButton = showsCancelButton
     }
 
     private var canStartPrompting: Bool {
@@ -86,7 +89,7 @@ struct ScriptEditorView: View {
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 18)
-                    .padding(.vertical, 13)
+                    .padding(.vertical, 17)
                     .editorGlassButton()
                     .contentShape(Capsule())
                 }
@@ -103,6 +106,15 @@ struct ScriptEditorView: View {
             }
         }
         .toolbar {
+            if showsCancelButton {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("取消") {
+                        Haptics.selection()
+                        cancelEditing()
+                    }
+                }
+            }
+
             ToolbarItem(placement: .principal) {
                 Button {
                     Haptics.selection()
@@ -253,6 +265,7 @@ struct ScriptEditorView: View {
     }
 
     private func save() {
+        shouldDiscardOnDisappear = false
         if script.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             script.title = "未命名文稿"
         }
@@ -284,6 +297,15 @@ struct ScriptEditorView: View {
         DispatchQueue.main.async {
             showPrompter = true
         }
+    }
+
+    private func cancelEditing() {
+        shouldDiscardOnDisappear = true
+        cancelScheduledAutosave()
+        if let storedScript = store.script(with: script.id) {
+            store.delete(storedScript)
+        }
+        dismiss()
     }
 
     private var displayTitle: String {
@@ -411,6 +433,10 @@ struct ScriptEditorView: View {
     }
 
     private func flushPendingAutosave() {
+        guard !shouldDiscardOnDisappear else {
+            cancelScheduledAutosave()
+            return
+        }
         cancelScheduledAutosave()
         saveIfPersistable()
     }

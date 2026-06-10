@@ -16,7 +16,7 @@ struct AIGenerationView: View {
     @FocusState private var promptFocused: Bool
 
     private var canGenerate: Bool {
-        apiKeyStore.hasDeepSeekAPIKey &&
+        apiKeyStore.hasAPIKey &&
             !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
             !isGenerating
     }
@@ -27,7 +27,7 @@ struct AIGenerationView: View {
                 VStack(spacing: 16) {
                     promptInputCard
 
-                    if !apiKeyStore.hasDeepSeekAPIKey {
+                    if !apiKeyStore.hasAPIKey {
                         apiKeySetupCard
                     }
 
@@ -102,7 +102,7 @@ struct AIGenerationView: View {
             .onChange(of: prompt) { _, _ in
                 clearTransientErrors()
             }
-            .onChange(of: apiKeyStore.deepSeekAPIKey) { _, _ in
+            .onChange(of: apiKeyStore.apiKey) { _, _ in
                 clearTransientErrors()
             }
             .onChange(of: dictation.errorMessage) { _, message in
@@ -157,7 +157,7 @@ struct AIGenerationView: View {
                     .frame(width: 34, height: 34)
                     .background(.white.opacity(0.36), in: Circle())
 
-                Text("填写 DeepSeek API Key")
+                Text("填写模型 API Key")
                     .font(.system(size: 15, weight: .semibold))
 
                 Spacer()
@@ -173,7 +173,7 @@ struct AIGenerationView: View {
             .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("填写 DeepSeek API Key")
+        .accessibilityLabel("填写模型 API Key")
     }
 
     private var generationStatusCard: some View {
@@ -330,7 +330,7 @@ struct AIGenerationView: View {
 
     private func generate() async {
         let cleanedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard apiKeyStore.hasDeepSeekAPIKey, !cleanedPrompt.isEmpty, !isGenerating else { return }
+        guard apiKeyStore.hasAPIKey, !cleanedPrompt.isEmpty, !isGenerating else { return }
 
         dictation.stop()
         isVoiceInputActive = false
@@ -342,7 +342,7 @@ struct AIGenerationView: View {
         }
 
         do {
-            let generator = DeepSeekScriptGenerator(apiKey: apiKeyStore.deepSeekAPIKey)
+            let generator = AIScriptGenerator(configuration: apiKeyStore.configuration)
             let content = try await generator.generateScript(for: cleanedPrompt)
             guard !Task.isCancelled else { return }
             createScript(from: content, prompt: cleanedPrompt)
