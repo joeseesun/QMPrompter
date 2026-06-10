@@ -244,7 +244,7 @@ private struct SpeechScriptIndex {
         var best: (endOffset: Int, score: Int)?
 
         for fragment in candidateFragments(for: spoken) {
-            for range in ranges(of: fragment) {
+            for range in ranges(of: fragment, in: searchRange(fragmentLength: fragment.count)) {
                 let startOffset = normalizedContent.distance(from: normalizedContent.startIndex, to: range.lowerBound)
                 let endOffset = normalizedContent.distance(from: normalizedContent.startIndex, to: range.upperBound)
                 guard isPlausibleMatch(startOffset: startOffset, endOffset: endOffset, fragmentLength: fragment.count) else {
@@ -287,16 +287,46 @@ private struct SpeechScriptIndex {
         return fragments
     }
 
-    private func ranges(of fragment: String) -> [Range<String.Index>] {
+    private func ranges(of fragment: String, in range: Range<String.Index>) -> [Range<String.Index>] {
+        guard !range.isEmpty else { return [] }
+
         var ranges: [Range<String.Index>] = []
-        var searchRange = normalizedContent.startIndex..<normalizedContent.endIndex
+        var searchRange = range
 
         while let range = normalizedContent.range(of: fragment, range: searchRange) {
             ranges.append(range)
-            searchRange = range.upperBound..<normalizedContent.endIndex
+            searchRange = range.upperBound..<searchRange.upperBound
         }
 
         return ranges
+    }
+
+    private func searchRange(fragmentLength: Int) -> Range<String.Index> {
+        guard !normalizedContent.isEmpty else {
+            return normalizedContent.startIndex..<normalizedContent.startIndex
+        }
+
+        if committedOffset == 0 {
+            let upperOffset = min(
+                normalizedContent.count,
+                max(48, fragmentLength * 4)
+            )
+            return normalizedContent.startIndex..<index(atOffset: upperOffset)
+        }
+
+        let backwardTolerance = max(18, fragmentLength * 2)
+        let forwardTolerance = fragmentLength < 8 ? max(48, fragmentLength * 6) : max(120, fragmentLength * 10)
+        let lowerOffset = max(0, committedOffset - backwardTolerance)
+        let upperOffset = min(normalizedContent.count, committedOffset + forwardTolerance)
+
+        return index(atOffset: lowerOffset)..<index(atOffset: upperOffset)
+    }
+
+    private func index(atOffset offset: Int) -> String.Index {
+        normalizedContent.index(
+            normalizedContent.startIndex,
+            offsetBy: min(max(0, offset), normalizedContent.count)
+        )
     }
 
     private func isPlausibleMatch(startOffset: Int, endOffset: Int, fragmentLength: Int) -> Bool {
