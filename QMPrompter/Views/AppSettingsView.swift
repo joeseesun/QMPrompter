@@ -10,6 +10,11 @@ struct AppSettingsView: View {
     @State private var modelDraft: String
     @State private var showAdvancedConnection = false
     @State private var showCustomModelField: Bool
+    @State private var remoteModelOptions: [AIModelOption] = []
+    @State private var isFetchingModels = false
+    @State private var modelFetchMessage: String?
+    @State private var showModelPicker = false
+    @State private var modelFetchTask: Task<Void, Never>?
     @FocusState private var focusedField: SettingsField?
 
     init(apiKeyStore: APIKeyStore) {
@@ -62,6 +67,23 @@ struct AppSettingsView: View {
                     }
                     .fontWeight(.semibold)
                 }
+            }
+            .sheet(isPresented: $showModelPicker) {
+                ModelPickerSheet(
+                    providerTitle: providerDraft.title,
+                    options: combinedModelOptions,
+                    selectedModel: normalizedModel
+                ) { model in
+                    selectModel(model)
+                    showModelPicker = false
+                } onCustomModel: {
+                    showCustomModelField = true
+                    focusedField = .model
+                    showModelPicker = false
+                }
+            }
+            .onDisappear {
+                modelFetchTask?.cancel()
             }
         }
     }
@@ -220,53 +242,40 @@ struct AppSettingsView: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
 
-            Menu {
-                ForEach(providerDraft.modelOptions) { option in
-                    Button {
-                        selectModel(option.id)
-                    } label: {
-                        Label(option.title, systemImage: normalizedModel == option.id ? "checkmark" : "circle")
-                    }
+            HStack(spacing: 8) {
+                Button {
+                    focusedField = nil
+                    showModelPicker = true
+                } label: {
+                    modelSelectionLabel
                 }
-
-                Divider()
+                .buttonStyle(.plain)
+                .accessibilityLabel("搜索选择模型")
 
                 Button {
-                    showCustomModelField = true
-                    focusedField = .model
+                    fetchRemoteModels()
                 } label: {
-                    Label("自定义模型", systemImage: showCustomModelField ? "checkmark" : "pencil")
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(selectedModelTitle)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        Text(normalizedModel)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                    ZStack {
+                        if isFetchingModels {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
                     }
-
-                    Spacer(minLength: 8)
-
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.secondary)
+                    .frame(width: 52, height: 52)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(.white.opacity(0.30), lineWidth: 0.7)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                 }
-                .padding(.horizontal, 14)
-                .frame(height: 52)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .stroke(.white.opacity(0.30), lineWidth: 0.7)
-                )
+                .buttonStyle(.plain)
+                .disabled(isFetchingModels)
+                .accessibilityLabel("从服务器刷新模型列表")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("选择模型")
 
             if showCustomModelField {
                 TextField(providerDraft.defaultModel, text: $modelDraft)
@@ -285,8 +294,46 @@ struct AppSettingsView: View {
                     )
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
+
+            if let modelFetchMessage {
+                Text(modelFetchMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
         }
         .animation(.snappy(duration: 0.18), value: showCustomModelField)
+        .animation(.snappy(duration: 0.18), value: modelFetchMessage)
+    }
+
+    private var modelSelectionLabel: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(selectedModelTitle)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(normalizedModel)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 52)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(.white.opacity(0.30), lineWidth: 0.7)
+        )
     }
 
     private func settingsTextField(
@@ -329,10 +376,28 @@ struct AppSettingsView: View {
     }
 
     private var selectedModelTitle: String {
-        if let option = providerDraft.modelOptions.first(where: { $0.id == normalizedModel }) {
+        if let option = combinedModelOptions.first(where: { $0.id == normalizedModel }) {
             return option.detail.isEmpty ? option.title : "\(option.title) · \(option.detail)"
         }
         return "自定义模型"
+    }
+
+    private var combinedModelOptions: [AIModelOption] {
+        var seen = Set<String>()
+        var result: [AIModelOption] = []
+
+        for option in remoteModelOptions + providerDraft.modelOptions {
+            let key = option.id.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(option)
+        }
+
+        if !normalizedModel.isEmpty, !seen.contains(normalizedModel.lowercased()) {
+            result.insert(AIModelOption(normalizedModel, title: "当前模型", detail: "自定义"), at: 0)
+        }
+
+        return result
     }
 
     private func selectModel(_ model: String) {
@@ -359,6 +424,46 @@ struct AppSettingsView: View {
 
         showCustomModelField = Self.isCustomModel(modelDraft, provider: provider)
         showAdvancedConnection = provider != .deepSeek
+        remoteModelOptions = []
+        modelFetchMessage = nil
+    }
+
+    private func fetchRemoteModels() {
+        modelFetchTask?.cancel()
+        focusedField = nil
+        modelFetchMessage = nil
+
+        let configuration = AIConnectionConfiguration(
+            provider: providerDraft,
+            apiKey: apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines),
+            baseURL: resolvedBaseURLDraft,
+            model: normalizedModel
+        )
+
+        modelFetchTask = Task {
+            await MainActor.run {
+                isFetchingModels = true
+            }
+
+            do {
+                let models = try await AIModelFetcher(configuration: configuration).fetchModels()
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    remoteModelOptions = models
+                    modelFetchMessage = "已加载 \(models.count) 个服务器模型"
+                    isFetchingModels = false
+                    showModelPicker = true
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    modelFetchMessage = "\(message) 已保留预设模型。"
+                    isFetchingModels = false
+                    showModelPicker = true
+                }
+            }
+        }
     }
 
     private static func isCustomModel(_ model: String, provider: AIProvider) -> Bool {
@@ -375,12 +480,102 @@ struct AppSettingsView: View {
         apiKeyStore.save()
         dismiss()
     }
+
+    private var resolvedBaseURLDraft: String {
+        let value = baseURLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? providerDraft.defaultBaseURL : value
+    }
 }
 
 private enum SettingsField: Hashable {
     case apiKey
     case baseURL
     case model
+}
+
+private struct ModelPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let providerTitle: String
+    let options: [AIModelOption]
+    let selectedModel: String
+    let onSelect: (String) -> Void
+    let onCustomModel: () -> Void
+
+    @State private var searchText = ""
+
+    private var filteredOptions: [AIModelOption] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return options }
+
+        return options.filter { option in
+            option.id.localizedCaseInsensitiveContains(query) ||
+                option.title.localizedCaseInsensitiveContains(query) ||
+                option.detail.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(filteredOptions) { option in
+                        Button {
+                            onSelect(option.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(option.title)
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(.primary)
+
+                                    Text(option.id)
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+
+                                    if !option.detail.isEmpty {
+                                        Text(option.detail)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                Spacer(minLength: 8)
+
+                                if option.id == selectedModel {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button {
+                        onCustomModel()
+                    } label: {
+                        Label("自定义模型", systemImage: "pencil")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索模型")
+            .navigationTitle(providerTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
 }
 
 private struct SettingsBackground: View {

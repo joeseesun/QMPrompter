@@ -24,6 +24,7 @@
 		01000000000000000000000F /* PromptDictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000010 /* PromptDictation.swift */; };
 		010000000000000000000010 /* AppSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000011 /* AppSettingsView.swift */; };
 		010000000000000000000011 /* AIGenerationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000012 /* AIGenerationView.swift */; };
+		010000000000000000000012 /* AIModelFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000013 /* AIModelFetcher.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 		020000000000000000000010 /* PromptDictation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptDictation.swift; sourceTree = "<group>"; };
 		020000000000000000000011 /* AppSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsView.swift; sourceTree = "<group>"; };
 		020000000000000000000012 /* AIGenerationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIGenerationView.swift; sourceTree = "<group>"; };
+		020000000000000000000013 /* AIModelFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelFetcher.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -106,6 +108,7 @@
 				02000000000000000000000D /* SpeechFollower.swift */,
 				02000000000000000000000E /* APIKeyStore.swift */,
 				02000000000000000000000F /* DeepSeekScriptGenerator.swift */,
+				020000000000000000000013 /* AIModelFetcher.swift */,
 				020000000000000000000010 /* PromptDictation.swift */,
 			);
 			path = Services;
@@ -216,6 +219,7 @@
 				01000000000000000000000F /* PromptDictation.swift in Sources */,
 				010000000000000000000010 /* AppSettingsView.swift in Sources */,
 				010000000000000000000011 /* AIGenerationView.swift in Sources */,
+				010000000000000000000012 /* AIModelFetcher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -14,6 +14,7 @@ QMPrompter is a small, personal iOS teleprompter app for speaking to camera. It 
 - Manual input and AI-assisted script generation.
 - AI providers: DeepSeek, OpenAI-compatible APIs, and Claude/Anthropic-compatible APIs.
 - Custom Base URL and model selection, with quick model presets and custom model names.
+- Remote model discovery from compatible `/models` endpoints, with searchable model selection.
 - Large voice input button for AI prompt dictation.
 - Front camera live preview behind the script.
 - Full-screen teleprompter with speech-following mode by default.
@@ -27,6 +28,7 @@ QMPrompter is a small, personal iOS teleprompter app for speaking to camera. It 
 - 支持手动输入和 AI 生成口播文稿。
 - AI 服务支持 DeepSeek、OpenAI 兼容接口、Claude/Anthropic 兼容接口。
 - 支持自定义 Base URL、模型下拉选择和自定义模型名。
+- 支持从兼容 `/models` 接口拉取服务器模型，并在可搜索列表中选择。
 - AI 生成页支持底部大圆形语音输入。
 - 前置摄像头实时预览作为提词背景。
 - 全屏提词界面默认使用语音跟随模式。
@@ -181,6 +183,7 @@ Open the app, go to Settings, and configure:
 - API Key: stored locally in Keychain.
 - Base URL: useful for official APIs or third-party gateways.
 - Model: choose from quick presets or enter a custom model name.
+- Remote models: tap refresh next to the model field to load models from the configured provider, then search and select one.
 
 打开 App 后进入设置页，可配置：
 
@@ -188,6 +191,7 @@ Open the app, go to Settings, and configure:
 - API Key：本地存入 Keychain。
 - Base URL：可填写官方接口或第三方中转地址。
 - 模型：可从预设模型下拉选择，也可以填写自定义模型名。
+- 远程模型：点击模型字段旁边的刷新按钮，可从当前服务端拉取模型列表，再搜索选择。
 
 Do not hard-code API keys in the project. Do not commit API keys to GitHub.
 
@@ -249,13 +253,11 @@ Check microphone and speech recognition permissions. Also make sure the device l
 
 - Better speech-following accuracy and smoother scroll behavior.
 - More polished Liquid Glass controls for the teleprompter screen.
-- Optional remote model list refresh from compatible AI providers.
 - More export/import options for scripts.
 - TestFlight/App Store packaging if the project moves beyond self-use.
 
 - 优化语音跟随准确率和滚动丝滑度。
 - 继续打磨提词界面的 Liquid Glass 控制组件。
-- 可选支持从兼容 AI 服务远程刷新模型列表。
 - 增加文稿导入/导出能力。
 - 如果从自用走向公开产品，再补 TestFlight/App Store 分发。
 
