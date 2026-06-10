@@ -19,9 +19,12 @@ struct AppSettingsView: View {
     @State private var showCustomModelField: Bool
     @State private var remoteModelOptions: [AIModelOption] = []
     @State private var isFetchingModels = false
+    @State private var isTestingConnection = false
     @State private var modelFetchMessage: String?
+    @State private var connectionTestMessage: String?
     @State private var showModelPicker = false
     @State private var modelFetchTask: Task<Void, Never>?
+    @State private var connectionTestTask: Task<Void, Never>?
     @State private var lastModelFetchSignature: String?
     @FocusState private var focusedField: SettingsField?
 
@@ -105,6 +108,7 @@ struct AppSettingsView: View {
             }
             .onDisappear {
                 modelFetchTask?.cancel()
+                connectionTestTask?.cancel()
             }
         }
     }
@@ -254,6 +258,7 @@ struct AppSettingsView: View {
             )
 
             modelSelectionField
+            connectionTestButton
         }
     }
 
@@ -325,6 +330,56 @@ struct AppSettingsView: View {
         }
         .animation(.snappy(duration: 0.18), value: showCustomModelField)
         .animation(.snappy(duration: 0.18), value: modelFetchMessage)
+    }
+
+    private var connectionTestButton: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Button {
+                testConnection()
+            } label: {
+                HStack(spacing: 10) {
+                    ZStack {
+                        if isTestingConnection {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "network")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                    }
+                    .frame(width: 24)
+
+                    Text(isTestingConnection ? "正在测试" : "测试连接")
+                        .font(.system(size: 15, weight: .semibold))
+
+                    Spacer()
+
+                    Image(systemName: "checkmark.seal")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .frame(height: 50)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .stroke(.white.opacity(0.30), lineWidth: 0.7)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isTestingConnection)
+            .accessibilityLabel("测试当前 AI 服务连接")
+
+            if let connectionTestMessage {
+                Text(connectionTestMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.snappy(duration: 0.18), value: connectionTestMessage)
     }
 
     private var modelSelectionLabel: some View {
@@ -464,6 +519,7 @@ struct AppSettingsView: View {
         remoteModelOptions = []
         lastModelFetchSignature = nil
         modelFetchMessage = nil
+        connectionTestMessage = nil
     }
 
     private func storeCurrentDraft() {
@@ -526,6 +582,45 @@ struct AppSettingsView: View {
                     modelFetchMessage = "\(message) 已保留预设模型。"
                     isFetchingModels = false
                     showModelPicker = true
+                }
+            }
+        }
+    }
+
+    private func testConnection() {
+        connectionTestTask?.cancel()
+        focusedField = nil
+        connectionTestMessage = nil
+        let fetchSignature = modelFetchSignature
+
+        let configuration = AIConnectionConfiguration(
+            provider: providerDraft,
+            apiKey: apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines),
+            baseURL: resolvedBaseURLDraft,
+            model: normalizedModel
+        )
+
+        connectionTestTask = Task {
+            await MainActor.run {
+                isTestingConnection = true
+            }
+
+            do {
+                let models = try await AIModelFetcher(configuration: configuration).fetchModels()
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    remoteModelOptions = models
+                    lastModelFetchSignature = fetchSignature
+                    connectionTestMessage = "连接可用，已加载 \(models.count) 个模型"
+                    modelFetchMessage = nil
+                    isTestingConnection = false
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    connectionTestMessage = message
+                    isTestingConnection = false
                 }
             }
         }
