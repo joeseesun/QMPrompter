@@ -34,7 +34,9 @@ struct AIGenerationView: View {
                         generationStatusCard
                     }
 
-                    if let message = errorMessage ?? dictation.errorMessage {
+                    if let message = errorMessage {
+                        generationErrorCard(message)
+                    } else if let message = dictation.errorMessage {
                         noticeCard(message, systemName: "exclamationmark.triangle")
                     }
                 }
@@ -214,6 +216,52 @@ struct AIGenerationView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .aiGenerationGlassSurface(cornerRadius: 18)
+    }
+
+    private func generationErrorCard(_ message: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.primary.opacity(0.72))
+                .frame(width: 34, height: 34)
+                .background(.white.opacity(0.34), in: Circle())
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("生成失败")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+
+                Text(message)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                Haptics.selection()
+                startGeneration()
+            } label: {
+                Text("重试")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .background(.white.opacity(0.34), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(.white.opacity(0.42), lineWidth: 0.6)
+                    )
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canGenerate)
+            .opacity(canGenerate ? 1 : 0.46)
+            .accessibilityLabel("重试生成")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .aiGenerationGlassSurface(cornerRadius: 18)
     }
 
     private func startGeneration() {
