@@ -40,7 +40,7 @@ struct AIGenerationView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
-                .padding(.bottom, 20)
+                .padding(.bottom, 118)
             }
             .scrollIndicators(.hidden)
             .background(AIGenerationBackground())
@@ -78,15 +78,18 @@ struct AIGenerationView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                VoiceInputButton(
-                    isRecording: dictation.isRecording,
-                    isDisabled: isGenerating
-                ) {
-                    Haptics.lightImpact()
-                    toggleDictation()
+                ZStack {
+                    AIVoiceDockBackground()
+
+                    VoiceInputButton(
+                        isRecording: dictation.isRecording,
+                        isDisabled: isGenerating
+                    ) {
+                        Haptics.lightImpact()
+                        toggleDictation()
+                    }
                 }
-                .padding(.top, 10)
-                .padding(.bottom, 8)
+                .frame(height: 116)
                 .frame(maxWidth: .infinity)
             }
             .onChange(of: dictation.transcript) { _, transcript in
@@ -121,11 +124,11 @@ struct AIGenerationView: View {
                     .focused($promptFocused)
 
                 if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("输入或说出你想生成的内容。")
-                        .font(.system(size: 16))
+                    Text("想生成什么？")
+                        .font(.system(size: 18, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary.opacity(0.78))
-                        .padding(.top, 8)
-                        .padding(.leading, 5)
+                        .padding(.top, 7)
+                        .padding(.leading, 4)
                         .allowsHitTesting(false)
                 }
             }
@@ -314,19 +317,49 @@ private struct VoiceInputButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: isRecording ? "stop.fill" : "mic.fill")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(.primary)
-                .frame(width: 88, height: 88)
-                .voiceButtonSurface(isRecording: isRecording)
-                .contentShape(Circle())
+            ZStack {
+                Circle()
+                    .stroke(.white.opacity(isRecording ? 0.34 : 0), lineWidth: 1.2)
+                    .frame(width: 104, height: 104)
+                    .scaleEffect(isRecording ? 1.10 : 0.94)
+                    .opacity(isRecording ? 1 : 0)
+
+                Circle()
+                    .stroke(.white.opacity(isRecording ? 0.22 : 0), lineWidth: 1)
+                    .frame(width: 118, height: 118)
+                    .scaleEffect(isRecording ? 1.14 : 0.90)
+                    .opacity(isRecording ? 1 : 0)
+
+                Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 88, height: 88)
+                    .voiceButtonSurface(isRecording: isRecording)
+            }
+            .frame(width: 124, height: 108)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.62 : 1)
-        .scaleEffect(isRecording ? 1.04 : 1)
-        .animation(.snappy(duration: 0.22), value: isRecording)
+        .scaleEffect(isRecording ? 1.03 : 1)
+        .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: isRecording)
         .accessibilityLabel(isRecording ? "停止语音输入" : "开始语音输入")
+    }
+}
+
+private struct AIVoiceDockBackground: View {
+    var body: some View {
+        LinearGradient(
+            colors: [
+                Color(.systemBackground).opacity(0),
+                Color(.systemBackground).opacity(0.78),
+                Color(.systemBackground)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
     }
 }
 
