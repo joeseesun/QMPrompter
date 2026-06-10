@@ -7,10 +7,8 @@ struct ScriptListView: View {
     @State private var searchText = ""
     @State private var path = NavigationPath()
     @State private var showSettings = false
-    @State private var showNewScriptOptions = false
     @State private var showAIGeneration = false
     @State private var pendingGeneratedScriptID: Script.ID?
-    @State private var pendingNewScriptAction: NewScriptAction?
     @State private var scriptPendingDeletion: Script?
     @State private var showDeleteConfirmation = false
     @FocusState private var searchFocused: Bool
@@ -71,9 +69,18 @@ struct ScriptListView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Haptics.selection()
-                        showNewScriptOptions = true
+                    Menu {
+                        Button {
+                            performNewScriptAction(.manualInput)
+                        } label: {
+                            Label("手动输入", systemImage: "square.and.pencil")
+                        }
+
+                        Button {
+                            performNewScriptAction(.aiGeneration)
+                        } label: {
+                            Label("AI 生成", systemImage: "sparkles")
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 24, weight: .semibold))
@@ -81,22 +88,11 @@ struct ScriptListView: View {
                             .homeToolbarSurface()
                             .contentShape(Circle())
                     }
-                    .buttonStyle(.plain)
                     .accessibilityLabel("新建文稿")
                 }
             }
             .sheet(isPresented: $showSettings) {
                 AppSettingsView(apiKeyStore: apiKeyStore)
-            }
-            .sheet(isPresented: $showNewScriptOptions, onDismiss: openPendingNewScriptAction) {
-                NewScriptOptionsView(
-                    onManualInput: { chooseNewScriptAction(.manualInput) },
-                    onAIGeneration: { chooseNewScriptAction(.aiGeneration) }
-                )
-                .presentationDetents([.height(224)])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(30)
-                .presentationBackground(.ultraThinMaterial)
             }
             .sheet(isPresented: $showAIGeneration, onDismiss: openPendingGeneratedScript) {
                 AIGenerationView(apiKeyStore: apiKeyStore) { script in
@@ -129,19 +125,10 @@ struct ScriptListView: View {
         }
     }
 
-    private func chooseNewScriptAction(_ action: NewScriptAction) {
-        Haptics.selection()
-        pendingNewScriptAction = action
-        showNewScriptOptions = false
-    }
-
-    private func openPendingNewScriptAction() {
-        guard let action = pendingNewScriptAction else { return }
-        pendingNewScriptAction = nil
-        performNewScriptAction(action)
-    }
-
     private func performNewScriptAction(_ action: NewScriptAction) {
+        Haptics.selection()
+        searchFocused = false
+
         switch action {
         case .manualInput:
             draftScript = store.createDraft()
@@ -206,7 +193,6 @@ struct ScriptListView: View {
                     title: "手动输入",
                     systemName: "square.and.pencil",
                     action: {
-                        Haptics.selection()
                         performNewScriptAction(.manualInput)
                     }
                 )
@@ -215,7 +201,6 @@ struct ScriptListView: View {
                     title: "AI 生成",
                     systemName: "sparkles",
                     action: {
-                        Haptics.selection()
                         performNewScriptAction(.aiGeneration)
                     }
                 )
@@ -271,37 +256,6 @@ struct ScriptListView: View {
 private enum NewScriptAction {
     case manualInput
     case aiGeneration
-}
-
-private struct NewScriptOptionsView: View {
-    let onManualInput: () -> Void
-    let onAIGeneration: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("新建文稿")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.primary)
-
-            HStack(spacing: 12) {
-                NewScriptOptionButton(
-                    title: "手动输入",
-                    systemName: "square.and.pencil",
-                    action: onManualInput
-                )
-
-                NewScriptOptionButton(
-                    title: "AI 生成",
-                    systemName: "sparkles",
-                    action: onAIGeneration
-                )
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 18)
-        .padding(.bottom, 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
 }
 
 private struct NewScriptOptionButton: View {
