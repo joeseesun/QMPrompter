@@ -84,7 +84,7 @@ struct AIGenerationView: View {
                     AIVoiceDockBackground()
 
                     VoiceInputButton(
-                        isRecording: dictation.isRecording,
+                        isActive: dictation.isActive,
                         isDisabled: isGenerating
                     ) {
                         Haptics.lightImpact()
@@ -286,7 +286,7 @@ struct AIGenerationView: View {
     }
 
     private func toggleDictation() {
-        if dictation.isRecording {
+        if dictation.isActive {
             dictation.stop()
             return
         }
@@ -359,7 +359,7 @@ struct AIGenerationView: View {
 }
 
 private struct VoiceInputButton: View {
-    let isRecording: Bool
+    let isActive: Bool
     let isDisabled: Bool
     let action: () -> Void
 
@@ -367,22 +367,22 @@ private struct VoiceInputButton: View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .stroke(.white.opacity(isRecording ? 0.34 : 0), lineWidth: 1.2)
+                    .stroke(.white.opacity(isActive ? 0.34 : 0), lineWidth: 1.2)
                     .frame(width: 104, height: 104)
-                    .scaleEffect(isRecording ? 1.10 : 0.94)
-                    .opacity(isRecording ? 1 : 0)
+                    .scaleEffect(isActive ? 1.10 : 0.94)
+                    .opacity(isActive ? 1 : 0)
 
                 Circle()
-                    .stroke(.white.opacity(isRecording ? 0.22 : 0), lineWidth: 1)
+                    .stroke(.white.opacity(isActive ? 0.22 : 0), lineWidth: 1)
                     .frame(width: 118, height: 118)
-                    .scaleEffect(isRecording ? 1.14 : 0.90)
-                    .opacity(isRecording ? 1 : 0)
+                    .scaleEffect(isActive ? 1.14 : 0.90)
+                    .opacity(isActive ? 1 : 0)
 
-                Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                Image(systemName: isActive ? "stop.fill" : "mic.fill")
                     .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(.primary)
                     .frame(width: 88, height: 88)
-                    .voiceButtonSurface(isRecording: isRecording)
+                    .voiceButtonSurface(isActive: isActive)
             }
             .frame(width: 124, height: 108)
             .contentShape(Circle())
@@ -390,9 +390,9 @@ private struct VoiceInputButton: View {
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.62 : 1)
-        .scaleEffect(isRecording ? 1.03 : 1)
-        .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: isRecording)
-        .accessibilityLabel(isRecording ? "停止语音输入" : "开始语音输入")
+        .scaleEffect(isActive ? 1.03 : 1)
+        .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: isActive)
+        .accessibilityLabel(isActive ? "停止语音输入" : "开始语音输入")
     }
 }
 
@@ -460,18 +460,18 @@ private extension View {
     }
 
     @ViewBuilder
-    func voiceButtonSurface(isRecording: Bool) -> some View {
+    func voiceButtonSurface(isActive: Bool) -> some View {
         let shape = Circle()
 
         if #available(iOS 26.0, *) {
-            glassEffect(.regular.tint(.white.opacity(isRecording ? 0.09 : 0.04)).interactive(), in: shape)
-                .background(.white.opacity(isRecording ? 0.36 : 0.26), in: shape)
+            glassEffect(.regular.tint(.white.opacity(isActive ? 0.09 : 0.04)).interactive(), in: shape)
+                .background(.white.opacity(isActive ? 0.36 : 0.26), in: shape)
                 .overlay(voiceButtonBorder(shape))
                 .shadow(color: .black.opacity(0.10), radius: 22, y: 10)
                 .shadow(color: .white.opacity(0.42), radius: 1, y: -0.5)
         } else {
             background(.ultraThinMaterial, in: shape)
-                .background(.white.opacity(isRecording ? 0.36 : 0.26), in: shape)
+                .background(.white.opacity(isActive ? 0.36 : 0.26), in: shape)
                 .overlay(voiceButtonBorder(shape))
                 .shadow(color: .black.opacity(0.09), radius: 20, y: 9)
         }

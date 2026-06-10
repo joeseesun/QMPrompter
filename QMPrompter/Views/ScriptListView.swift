@@ -88,6 +88,7 @@ struct ScriptListView: View {
                             .homeToolbarSurface()
                             .contentShape(Circle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("新建文稿")
                 }
             }
@@ -453,21 +454,36 @@ private extension View {
     func homeToolbarSurface() -> some View {
         let shape = Circle()
 
-        if #available(iOS 26.0, *) {
-            glassEffect(.regular.tint(.white.opacity(0.04)).interactive(), in: shape)
-                .background(.white.opacity(0.28), in: shape)
-                .overlay(
-                    shape.stroke(.white.opacity(0.45), lineWidth: 0.7)
+        background(.ultraThinMaterial, in: shape)
+            .background {
+                shape.fill(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.38),
+                            .white.opacity(0.16)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
-                .shadow(color: .black.opacity(0.055), radius: 14, y: 7)
-        } else {
-            background(.ultraThinMaterial, in: shape)
-                .background(.white.opacity(0.26), in: shape)
-                .overlay(
-                    shape.stroke(.white.opacity(0.38), lineWidth: 0.7)
+            }
+            .overlay(
+                shape.stroke(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.62),
+                            .white.opacity(0.24),
+                            .black.opacity(0.035)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.65
                 )
-                .shadow(color: .black.opacity(0.05), radius: 13, y: 7)
-        }
+            )
+            .clipShape(shape)
+            .shadow(color: .black.opacity(0.05), radius: 13, y: 7)
+            .shadow(color: .white.opacity(0.36), radius: 1, y: -0.5)
     }
 
     private func cardFill(_ shape: RoundedRectangle) -> some View {
