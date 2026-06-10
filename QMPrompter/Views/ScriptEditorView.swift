@@ -215,7 +215,7 @@ struct ScriptEditorView: View {
                         overlayOpacity: script.overlayOpacity
                     )
 
-                    settingSlider(
+                    DisplaySliderCard(
                         title: "字号",
                         systemName: "textformat.size",
                         value: $script.fontSize,
@@ -224,7 +224,7 @@ struct ScriptEditorView: View {
                         label: "\(Int(script.fontSize))"
                     )
 
-                    settingSlider(
+                    DisplaySliderCard(
                         title: "速度",
                         systemName: "speedometer",
                         value: $script.scrollSpeed,
@@ -233,21 +233,9 @@ struct ScriptEditorView: View {
                         label: "\(Int(script.scrollSpeed)) 字/分"
                     )
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("文字颜色", systemImage: "circle.lefthalf.filled")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
+                    TextColorSettingCard(selection: $script.textColorPreset)
 
-                        Picker("文字颜色", selection: $script.textColorPreset) {
-                            ForEach(TextColorPreset.editorChoices) { preset in
-                                Text(preset.name).tag(preset)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    .editorSettingSurface()
-
-                    settingSlider(
+                    DisplaySliderCard(
                         title: "摄像头透明度",
                         systemName: "camera.aperture",
                         value: cameraTransparencyBinding,
@@ -432,31 +420,6 @@ struct ScriptEditorView: View {
         autosaveTask = nil
     }
 
-    private func settingSlider(
-        title: String,
-        systemName: String,
-        value: Binding<Double>,
-        range: ClosedRange<Double>,
-        step: Double,
-        label: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label(title, systemImage: systemName)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Text(label)
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.primary)
-            }
-
-            Slider(value: value, in: range, step: step)
-        }
-        .editorSettingSurface()
-    }
 }
 
 private struct DisplayPreviewPanel: View {
@@ -515,6 +478,117 @@ private struct DisplayPreviewPanel: View {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+    }
+}
+
+private struct DisplaySliderCard: View {
+    let title: String
+    let systemName: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: systemName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.72))
+                    .frame(width: 34, height: 34)
+                    .background(.white.opacity(0.36), in: Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(.white.opacity(0.46), lineWidth: 0.65)
+                    )
+
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.72))
+
+                Spacer(minLength: 12)
+
+                Text(label)
+                    .font(.system(size: 20, weight: .semibold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+
+            Slider(value: $value, in: range, step: step)
+                .tint(.primary.opacity(0.72))
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 15)
+        .padding(.bottom, 14)
+        .editorSettingSurface(cornerRadius: 22)
+    }
+}
+
+private struct TextColorSettingCard: View {
+    @Binding var selection: TextColorPreset
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "circle.lefthalf.filled")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.72))
+                    .frame(width: 34, height: 34)
+                    .background(.white.opacity(0.36), in: Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(.white.opacity(0.46), lineWidth: 0.65)
+                    )
+
+                Text("文字颜色")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.72))
+
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                ForEach(TextColorPreset.editorChoices) { preset in
+                    Button {
+                        Haptics.selection()
+                        selection = preset
+                    } label: {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(preset.color)
+                                .frame(width: 14, height: 14)
+                                .overlay(
+                                    Circle()
+                                        .stroke(.black.opacity(preset == .white ? 0.12 : 0), lineWidth: 0.8)
+                                )
+
+                            Text(preset.name)
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(
+                            Capsule()
+                                .fill(selection == preset ? .white.opacity(0.58) : .white.opacity(0.18))
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(selection == preset ? .white.opacity(0.72) : .white.opacity(0.26), lineWidth: 0.7)
+                        )
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("文字颜色\(preset.name)")
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 15)
+        .padding(.bottom, 14)
+        .editorSettingSurface(cornerRadius: 22)
     }
 }
 
@@ -592,21 +666,34 @@ private extension View {
     }
 
     @ViewBuilder
-    func editorSettingSurface() -> some View {
-        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+    func editorSettingSurface(cornerRadius: CGFloat = 18) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         if #available(iOS 26.0, *) {
-            glassEffect(.regular.tint(.white.opacity(0.03)).interactive(), in: shape)
-                .background(Color(.secondarySystemGroupedBackground).opacity(0.54), in: shape)
+            glassEffect(.regular.tint(.white.opacity(0.045)).interactive(), in: shape)
+                .background(Color(.secondarySystemGroupedBackground).opacity(0.46), in: shape)
                 .overlay(
-                    shape.stroke(.white.opacity(0.38), lineWidth: 0.65)
+                    shape.stroke(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.54),
+                                .white.opacity(0.18),
+                                .black.opacity(0.035)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.7
+                    )
                 )
+                .shadow(color: .black.opacity(0.05), radius: 14, y: 8)
         } else {
             background(.ultraThinMaterial, in: shape)
-                .background(Color(.secondarySystemGroupedBackground).opacity(0.54), in: shape)
+                .background(Color(.secondarySystemGroupedBackground).opacity(0.46), in: shape)
                 .overlay(
                     shape.stroke(.white.opacity(0.34), lineWidth: 0.65)
                 )
+                .shadow(color: .black.opacity(0.045), radius: 12, y: 7)
         }
     }
 
