@@ -9,14 +9,19 @@ struct AppSettingsView: View {
     @State private var baseURLDraft: String
     @State private var modelDraft: String
     @State private var showAdvancedConnection = false
+    @State private var showCustomModelField: Bool
     @FocusState private var focusedField: SettingsField?
 
     init(apiKeyStore: APIKeyStore) {
+        let initialProvider = apiKeyStore.provider
+        let initialModel = apiKeyStore.model.trimmingCharacters(in: .whitespacesAndNewlines)
+
         self.apiKeyStore = apiKeyStore
-        _providerDraft = State(initialValue: apiKeyStore.provider)
+        _providerDraft = State(initialValue: initialProvider)
         _apiKeyDraft = State(initialValue: apiKeyStore.apiKey)
         _baseURLDraft = State(initialValue: apiKeyStore.baseURL)
         _modelDraft = State(initialValue: apiKeyStore.model)
+        _showCustomModelField = State(initialValue: AppSettingsView.isCustomModel(initialModel, provider: initialProvider))
     }
 
     var body: some View {
@@ -205,13 +210,83 @@ struct AppSettingsView: View {
                 keyboardType: .URL
             )
 
-            settingsTextField(
-                title: "模型",
-                placeholder: providerDraft.defaultModel,
-                text: $modelDraft,
-                field: .model
-            )
+            modelSelectionField
         }
+    }
+
+    private var modelSelectionField: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("模型")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            Menu {
+                ForEach(providerDraft.modelOptions) { option in
+                    Button {
+                        selectModel(option.id)
+                    } label: {
+                        Label(option.title, systemImage: normalizedModel == option.id ? "checkmark" : "circle")
+                    }
+                }
+
+                Divider()
+
+                Button {
+                    showCustomModelField = true
+                    focusedField = .model
+                } label: {
+                    Label("自定义模型", systemImage: showCustomModelField ? "checkmark" : "pencil")
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(selectedModelTitle)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Text(normalizedModel)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .frame(height: 52)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .stroke(.white.opacity(0.30), lineWidth: 0.7)
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("选择模型")
+
+            if showCustomModelField {
+                TextField(providerDraft.defaultModel, text: $modelDraft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.system(size: 15, weight: .regular, design: .monospaced))
+                    .focused($focusedField, equals: .model)
+                    .submitLabel(.done)
+                    .onSubmit(saveSettingsAndDismiss)
+                    .padding(.horizontal, 14)
+                    .frame(height: 46)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(.white.opacity(focusedField == .model ? 0.66 : 0.30), lineWidth: focusedField == .model ? 1 : 0.7)
+                    )
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy(duration: 0.18), value: showCustomModelField)
     }
 
     private func settingsTextField(
@@ -245,8 +320,25 @@ struct AppSettingsView: View {
     }
 
     private var modelSummary: String {
+        normalizedModel
+    }
+
+    private var normalizedModel: String {
         let model = modelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         return model.isEmpty ? providerDraft.defaultModel : model
+    }
+
+    private var selectedModelTitle: String {
+        if let option = providerDraft.modelOptions.first(where: { $0.id == normalizedModel }) {
+            return option.detail.isEmpty ? option.title : "\(option.title) · \(option.detail)"
+        }
+        return "自定义模型"
+    }
+
+    private func selectModel(_ model: String) {
+        modelDraft = model
+        showCustomModelField = false
+        focusedField = nil
     }
 
     private func changeProvider(to provider: AIProvider) {
@@ -265,7 +357,14 @@ struct AppSettingsView: View {
             modelDraft = provider.defaultModel
         }
 
+        showCustomModelField = Self.isCustomModel(modelDraft, provider: provider)
         showAdvancedConnection = provider != .deepSeek
+    }
+
+    private static func isCustomModel(_ model: String, provider: AIProvider) -> Bool {
+        let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedModel.isEmpty else { return false }
+        return !provider.modelOptions.contains { $0.id == trimmedModel }
     }
 
     private func saveSettingsAndDismiss() {

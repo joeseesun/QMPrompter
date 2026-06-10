@@ -43,11 +43,51 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    var modelOptions: [AIModelOption] {
+        switch self {
+        case .deepSeek:
+            [
+                AIModelOption("deepseek-v4-flash", title: "DeepSeek V4 Flash", detail: "当前默认"),
+                AIModelOption("deepseek-chat", title: "DeepSeek Chat"),
+                AIModelOption("deepseek-reasoner", title: "DeepSeek Reasoner")
+            ]
+        case .openAICompatible:
+            [
+                AIModelOption("gpt-4o-mini", title: "GPT-4o mini", detail: "OpenAI 官方"),
+                AIModelOption("gpt-4o", title: "GPT-4o", detail: "OpenAI 官方"),
+                AIModelOption("o3-mini", title: "o3 mini", detail: "OpenAI 官方"),
+                AIModelOption("anthropic/claude-sonnet-4", title: "Claude Sonnet 4", detail: "OpenRouter"),
+                AIModelOption("claude-sonnet-4-20250514", title: "Claude Sonnet 4", detail: "兼容中转"),
+                AIModelOption("deepseek-chat", title: "DeepSeek Chat"),
+                AIModelOption("deepseek-reasoner", title: "DeepSeek Reasoner"),
+                AIModelOption("qwen-max", title: "Qwen Max")
+            ]
+        case .anthropicCompatible:
+            [
+                AIModelOption("claude-sonnet-4-20250514", title: "Claude Sonnet 4", detail: "推荐"),
+                AIModelOption("claude-opus-4-20250514", title: "Claude Opus 4"),
+                AIModelOption("claude-3-5-haiku-latest", title: "Claude Haiku")
+            ]
+        }
+    }
+
     var keyPlaceholder: String {
         switch self {
         case .deepSeek, .openAICompatible: "sk-..."
         case .anthropicCompatible: "sk-ant-... 或第三方 token"
         }
+    }
+}
+
+struct AIModelOption: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+
+    init(_ id: String, title: String? = nil, detail: String = "") {
+        self.id = id
+        self.title = title ?? id
+        self.detail = detail
     }
 }
 
