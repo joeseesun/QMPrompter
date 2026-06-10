@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 struct Script: Identifiable, Codable, Equatable {
-    static let defaultFontSize: Double = 44
+    static let defaultFontSize: Double = 38
 
     var id: UUID
     var title: String

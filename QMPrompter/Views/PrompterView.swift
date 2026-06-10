@@ -35,6 +35,10 @@ struct PrompterView: View {
             let bottomPadding = proxy.size.height * (showSettingsPanel ? (isSpeedMode ? 0.46 : 0.40) : 0.34)
             let totalHeight = layout.contentHeight + topPadding + bottomPadding
             let maxOffset = max(0, totalHeight - proxy.size.height)
+            let interactionTopInset = controlsHidden ? 0 : proxy.safeAreaInsets.top + 82
+            let interactionBottomInset = showSettingsPanel
+                ? proxy.safeAreaInsets.bottom + (isSpeedMode ? 330 : 250)
+                : proxy.safeAreaInsets.bottom + 36
             let scrollingIndex = lineIndex(
                 atContentY: max(0, engine.offset - topPadding + layout.averageLineHeight * 0.42),
                 layouts: layout.lineLayouts
@@ -68,8 +72,8 @@ struct PrompterView: View {
                     Spacer(minLength: 0)
                 }
 
-                interactionLayer()
-                .zIndex(1)
+                interactionLayer(topInset: interactionTopInset, bottomInset: interactionBottomInset)
+                    .zIndex(1)
 
                 if !showSettingsPanel && maxOffset > 0 {
                     PromptProgressRail(position: engine.position, maxOffset: maxOffset)
@@ -631,11 +635,19 @@ struct PrompterView: View {
         }
     }
 
-    private func interactionLayer() -> some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .onTapGesture(perform: handleCanvasTap)
-            .gesture(manualScrollGesture)
+    private func interactionLayer(topInset: CGFloat, bottomInset: CGFloat) -> some View {
+        GeometryReader { proxy in
+            let height = max(1, proxy.size.height - topInset - bottomInset)
+
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: handleCanvasTap)
+                .gesture(manualScrollGesture)
+                .padding(.top, topInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
         .ignoresSafeArea()
     }
 
@@ -691,6 +703,7 @@ struct PrompterView: View {
 
             controlSlider(
                 title: "速度",
+                systemName: "speedometer",
                 value: Binding(
                     get: { script.scrollSpeed },
                     set: {
@@ -762,6 +775,7 @@ struct PrompterView: View {
     private var fontSizeSlider: some View {
         controlSlider(
             title: "字号",
+            systemName: "textformat.size",
             value: Binding(
                 get: { script.fontSize },
                 set: { script.fontSize = $0 }
@@ -775,6 +789,7 @@ struct PrompterView: View {
         PromptProgressSlider(
             position: engine.position,
             maxOffset: maxOffset,
+            systemName: "chart.bar.fill",
             setOffset: {
                 stopSpeechFollowerForManualPositioning()
                 engine.setOffset($0)
@@ -804,23 +819,37 @@ struct PrompterView: View {
 
     private func controlSlider(
         title: String,
+        systemName: String,
         value: Binding<Double>,
         range: ClosedRange<Double>,
         label: String
     ) -> some View {
-        VStack(spacing: 6) {
-            HStack {
+        VStack(spacing: 9) {
+            HStack(spacing: 9) {
+                Image(systemName: systemName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: 24, height: 24)
+                    .foregroundStyle(.white.opacity(0.88))
+                    .background(.white.opacity(0.12), in: Circle())
+
                 Text(title)
-                    .font(.caption)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.72))
+
                 Spacer()
+
                 Text(label)
-                    .font(.caption.monospacedDigit())
+                    .font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.white)
             }
+
             Slider(value: value, in: range)
                 .tint(.white.opacity(0.86))
         }
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .promptControlSurface()
     }
 
     private func progress(maxOffset: CGFloat) -> CGFloat {
@@ -1154,7 +1183,7 @@ private struct PromptLineTextRow: View, Equatable {
             .fixedSize(horizontal: false, vertical: true)
             .foregroundStyle(textColor)
             .modifier(PromptLineHighlightShadow(isHighlighted: isHighlighted))
-            .frame(width: textWidth, height: rowHeight, alignment: .top)
+            .frame(width: textWidth, height: rowHeight, alignment: .center)
             .frame(maxWidth: .infinity, alignment: .center)
             .animation(.easeInOut(duration: 0.16), value: isHighlighted)
     }
@@ -1203,17 +1232,26 @@ private struct PromptProgressSlider: View {
     @ObservedObject var position: ScrollPosition
 
     let maxOffset: CGFloat
+    let systemName: String
     let setOffset: (CGFloat) -> Void
 
     var body: some View {
-        VStack(spacing: 6) {
-            HStack {
+        VStack(spacing: 9) {
+            HStack(spacing: 9) {
+                Image(systemName: systemName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: 24, height: 24)
+                    .foregroundStyle(.white.opacity(0.88))
+                    .background(.white.opacity(0.12), in: Circle())
+
                 Text("进度")
-                    .font(.caption)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.72))
+
                 Spacer()
+
                 Text("\(Int(progress * 100))%")
-                    .font(.caption.monospacedDigit())
+                    .font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.white)
             }
 
@@ -1226,6 +1264,10 @@ private struct PromptProgressSlider: View {
             )
             .tint(.white.opacity(0.86))
         }
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .promptControlSurface()
     }
 
     private var progress: CGFloat {
@@ -1350,6 +1392,27 @@ private extension View {
                 )
                 .shadow(color: .black.opacity(0.16), radius: 22, y: 12)
         }
+    }
+
+    @ViewBuilder
+    func promptControlSurface() -> some View {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+
+        background(.white.opacity(0.075), in: shape)
+            .overlay(
+                shape.stroke(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.18),
+                            .white.opacity(0.07),
+                            .black.opacity(0.03)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.65
+                )
+            )
     }
 }
 
