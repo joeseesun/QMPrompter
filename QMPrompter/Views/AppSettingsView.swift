@@ -23,6 +23,7 @@ struct AppSettingsView: View {
     @State private var modelFetchMessage: String?
     @State private var connectionTestMessage: String?
     @State private var showModelPicker = false
+    @State private var showProviderPicker = false
     @State private var modelFetchTask: Task<Void, Never>?
     @State private var connectionTestTask: Task<Void, Never>?
     @State private var lastModelFetchSignature: String?
@@ -106,6 +107,15 @@ struct AppSettingsView: View {
                     showModelPicker = false
                 }
             }
+            .confirmationDialog("AI 服务", isPresented: $showProviderPicker, titleVisibility: .visible) {
+                ForEach(AIProvider.allCases) { provider in
+                    Button(provider.title) {
+                        changeProvider(to: provider)
+                    }
+                }
+
+                Button("取消", role: .cancel) {}
+            }
             .onDisappear {
                 modelFetchTask?.cancel()
                 connectionTestTask?.cancel()
@@ -122,14 +132,9 @@ struct AppSettingsView: View {
 
                 Spacer()
 
-                Menu {
-                    ForEach(AIProvider.allCases) { provider in
-                        Button {
-                            changeProvider(to: provider)
-                        } label: {
-                            Label(provider.title, systemImage: provider == providerDraft ? "checkmark" : "circle")
-                        }
-                    }
+                Button {
+                    focusedField = nil
+                    showProviderPicker = true
                 } label: {
                     HStack(spacing: 6) {
                         Text(providerDraft.title)
@@ -147,8 +152,10 @@ struct AppSettingsView: View {
                         Capsule()
                             .stroke(.white.opacity(0.42), lineWidth: 0.6)
                     )
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("切换 AI 服务")
             }
 
             Text(providerDraft.subtitle)
