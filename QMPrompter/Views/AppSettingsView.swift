@@ -15,6 +15,7 @@ struct AppSettingsView: View {
     @State private var modelFetchMessage: String?
     @State private var showModelPicker = false
     @State private var modelFetchTask: Task<Void, Never>?
+    @State private var lastModelFetchSignature: String?
     @FocusState private var focusedField: SettingsField?
 
     init(apiKeyStore: APIKeyStore) {
@@ -244,8 +245,7 @@ struct AppSettingsView: View {
 
             HStack(spacing: 8) {
                 Button {
-                    focusedField = nil
-                    showModelPicker = true
+                    openModelPicker()
                 } label: {
                     modelSelectionLabel
                 }
@@ -400,10 +400,37 @@ struct AppSettingsView: View {
         return result
     }
 
+    private var modelFetchSignature: String {
+        let apiKey = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keySignature = apiKey.isEmpty ? "empty" : String(apiKey.hashValue)
+        let normalizedBaseURL = resolvedBaseURLDraft
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+
+        return [
+            providerDraft.rawValue,
+            normalizedBaseURL,
+            keySignature
+        ].joined(separator: "|")
+    }
+
     private func selectModel(_ model: String) {
         modelDraft = model
         showCustomModelField = false
         focusedField = nil
+    }
+
+    private func openModelPicker() {
+        focusedField = nil
+
+        guard !isFetchingModels else { return }
+        guard lastModelFetchSignature == modelFetchSignature else {
+            fetchRemoteModels()
+            return
+        }
+
+        showModelPicker = true
     }
 
     private func changeProvider(to provider: AIProvider) {
@@ -425,6 +452,7 @@ struct AppSettingsView: View {
         showCustomModelField = Self.isCustomModel(modelDraft, provider: provider)
         showAdvancedConnection = provider != .deepSeek
         remoteModelOptions = []
+        lastModelFetchSignature = nil
         modelFetchMessage = nil
     }
 
@@ -432,6 +460,11 @@ struct AppSettingsView: View {
         modelFetchTask?.cancel()
         focusedField = nil
         modelFetchMessage = nil
+        let fetchSignature = modelFetchSignature
+
+        if lastModelFetchSignature != fetchSignature {
+            remoteModelOptions = []
+        }
 
         let configuration = AIConnectionConfiguration(
             provider: providerDraft,
@@ -450,6 +483,7 @@ struct AppSettingsView: View {
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     remoteModelOptions = models
+                    lastModelFetchSignature = fetchSignature
                     modelFetchMessage = "已加载 \(models.count) 个服务器模型"
                     isFetchingModels = false
                     showModelPicker = true
@@ -458,6 +492,7 @@ struct AppSettingsView: View {
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    lastModelFetchSignature = fetchSignature
                     modelFetchMessage = "\(message) 已保留预设模型。"
                     isFetchingModels = false
                     showModelPicker = true
